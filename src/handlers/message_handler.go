@@ -118,6 +118,13 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 		log.Fatalf("secret_key not found or is not a string in user.BotConfig")
 	}
 
+	if apiKey == "" || secretKey == "" {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "❌ *API Key or Secret Key not found in configuration.* \n\n📌 Use the /set\\_config command to set \nthe API Key and Secret Key.")
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+		return
+	}
+
 	api := apis.NewBinanceAPI("https://api.binance.com", apiKey, secretKey, user.BotConfig)
 	queue := priority_queue.NewPriorityQueue(2, 5*time.Second)
 

@@ -60,10 +60,36 @@ func (j *Job) Run() {
 		case <-j.stopChan:
 			return
 		default:
-			j.ListAdsAndCreateOrders("USDT", "INR", 1, 2, "BUY")
+			asset := getConfigValue(j.BinanceAPI.Config, "asset", "USDT")
+			fiat := getConfigValue(j.BinanceAPI.Config, "fiat", "INR")
+			page := getConfigIntValue(j.BinanceAPI.Config, "page", 1)
+			rows := getConfigIntValue(j.BinanceAPI.Config, "rows", 20)
+			tradeType := getConfigValue(j.BinanceAPI.Config, "trade_type", "BUY")
+			j.ListAdsAndCreateOrders(asset, fiat, page, rows, tradeType)
 			time.Sleep(1 * time.Second) // Adjust the sleep time as needed
 		}
 	}
+}
+
+func getConfigValue(config map[string]interface{}, key, defaultValue string) string {
+	if value, ok := config[key].(string); ok {
+		return value
+	}
+	return defaultValue
+}
+
+func getConfigIntValue(config map[string]interface{}, key string, defaultValue int) int {
+	if value, ok := config[key].(float64); ok {
+		return int(value)
+	}
+	return defaultValue
+}
+
+func getConfigFloatValue(config map[string]interface{}, key string, defaultValue float64) float64 {
+	if value, ok := config[key].(float64); ok {
+		return float64(value)
+	}
+	return defaultValue
 }
 
 func (j *Job) Stop() {
@@ -72,18 +98,21 @@ func (j *Job) Stop() {
 
 func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeType string) {
 	if j.BinanceAPI.Config == nil {
-		log.Fatalf("Binance API config not found")
+		log.Printf("Binance API config not found")
+		return
 	}
 
 	// Extract error codes to ignore from the config
 	extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
 	if !ok {
-		log.Fatalf("extra_filter not found or is not a map in config")
+		log.Printf("extra_filter not found or is not a map in config")
+		return
 	}
 
 	errorCodesStr, ok := extraFilter["error_codes"].(string)
 	if !ok {
-		log.Fatalf("error_codes not found or is not a string in extra_filter")
+		log.Printf("error_codes not found or is not a string in extra_filter")
+		return
 	}
 
 	errorCodesList := strings.Split(errorCodesStr, ",")
@@ -92,7 +121,8 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 	for _, codeStr := range errorCodesList {
 		code, err := strconv.Atoi(strings.TrimSpace(codeStr))
 		if err != nil {
-			log.Fatalf("Failed to parse error code: %v", err)
+			log.Printf("Failed to parse error code: %v", err)
+			continue
 		}
 		errorIgnore[code] = true
 	}
@@ -100,13 +130,15 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 	// Fetch ads from Binance API
 	adsResponse, err := j.BinanceAPI.SearchAds(asset, fiat, page, rows, tradeType)
 	if err != nil {
-		log.Fatalf("Failed to fetch ads: %v", err)
+		log.Printf("Failed to fetch ads: %v", err)
+		return
 	}
 
 	// Extract ads from response
 	ads, ok := adsResponse["data"].([]interface{})
 	if !ok {
-		log.Fatalf("Invalid ads response format")
+		log.Printf("Invalid ads response format")
+		return
 	}
 
 	// Add ads to the priority queue
@@ -134,7 +166,23 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 			continue
 		}
 
+		extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
+		if !ok {
+			log.Printf("extra_filter not found or is not a map in config")
+			return
+		}
+
+		targetPrice := getConfigFloatValue(extraFilter, "price", 0)
+		if !ok {
+			log.Printf("extra_filter not found or is not a map in config")
+			return
+		}
+
 		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
+
+		if price > targetPrice {
+			continue
+		}
 
 		// Check if the ad has been processed before and had an error
 		if adInfo, exists := j.adsTracker[taskName]; exists {
@@ -294,7 +342,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 			orderMessage, errorCode, errorMessage,
 		)
 
-		j.bot.Send(tgbotapi.NewMessage(j.chatID,  message))
+		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 		return fmt.Errorf("order creation failed for %s", advOrderNumber)
 	}
 
