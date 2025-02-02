@@ -122,7 +122,7 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 	queue := priority_queue.NewPriorityQueue(2, 5*time.Second)
 
 	jobManager := jobs.GetJobManager()
-	jobManager.StartJob(userID, api, queue)
+	jobManager.StartJob(userID, api, queue, bot, update.Message.Chat.ID)
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🤖 The bot is running in the background!")
 	bot.Send(msg)

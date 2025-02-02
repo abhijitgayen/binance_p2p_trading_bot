@@ -4,6 +4,8 @@ import (
 	"go_binance_bot/src/apis"
 	"go_binance_bot/src/helpers/priority_queue"
 	"sync"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type JobManager struct {
@@ -23,12 +25,12 @@ func GetJobManager() *JobManager {
 	return manager
 }
 
-func (jm *JobManager) StartJob(userID int64, api *apis.BinanceAPI, queue *priority_queue.PriorityQueue) {
+func (jm *JobManager) StartJob(userID int64, api *apis.BinanceAPI, queue *priority_queue.PriorityQueue, bot *tgbotapi.BotAPI, chatID int64) {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
 	if _, exists := jm.jobs[userID]; !exists {
-		job := NewJob(api, queue)
+		job := NewJob(api, queue, bot, chatID)
 		jm.jobs[userID] = job
 		go job.Run() // Run the job in a separate goroutine
 	}

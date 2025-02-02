@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type AdInfo struct {
@@ -23,14 +25,18 @@ type Job struct {
 	stopChan   chan struct{}
 	adsTracker map[string]*AdInfo
 	wg         sync.WaitGroup
+	bot        *tgbotapi.BotAPI
+	chatID     int64
 }
 
-func NewJob(api *apis.BinanceAPI, queue *priority_queue.PriorityQueue) *Job {
+func NewJob(api *apis.BinanceAPI, queue *priority_queue.PriorityQueue, bot *tgbotapi.BotAPI, chatID int64) *Job {
 	return &Job{
 		BinanceAPI: api,
 		Queue:      queue,
 		stopChan:   make(chan struct{}),
 		adsTracker: make(map[string]*AdInfo),
+		bot:        bot,
+		chatID:     chatID,
 	}
 }
 
@@ -137,7 +143,11 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 					continue
 				}
 
-				// fmt.Printf("Retrying ad %s Error %s\n", taskName, adInfo.Err["msg"].(string))
+				if j.Queue.ContainsTask(taskName) {
+					continue
+				}
+
+				// log.Printf("Retrying task %s\n", taskName)
 			} else {
 				continue
 			}
@@ -262,11 +272,29 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		return err
 	}
 
+	orderMessage := fmt.Sprintf(
+		"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
+		advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
+	)
+
 	// Check if "success" key exists and is a boolean
 	if success, ok := orderResponse["success"].(bool); !ok || !success {
 		// log.Printf("Order creation failed for %s", orderResponse)
 		j.adsTracker[taskName].HasError = true
 		j.adsTracker[taskName].Err = orderResponse
+
+		errorMessage, _ := orderResponse["msg"].(string)
+		if errorMessage == "" {
+			errorMessage = "Unknown error occurred."
+		}
+
+		errorCode := orderResponse["code"]
+		message := fmt.Sprintf(
+			"🛑 Order Fail 🛑 \n\n%s\nERR CODE: %v\nERR MSG: %s",
+			orderMessage, errorCode, errorMessage,
+		)
+
+		j.bot.Send(tgbotapi.NewMessage(j.chatID,  message))
 		return fmt.Errorf("order creation failed for %s", advOrderNumber)
 	}
 
@@ -298,12 +326,4 @@ func max(a, b float64) float64 {
 		return a
 	}
 	return b
-}
-
-func toSet(arr []int) map[int]bool {
-	set := make(map[int]bool)
-	for _, num := range arr {
-		set[num] = true
-	}
-	return set
 }

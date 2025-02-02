@@ -73,3 +73,19 @@ func (pq *PriorityQueue) ProcessTasks() {
 		pq.tree.Delete(task)
 	}
 }
+
+func (pq *PriorityQueue) ContainsTask(taskName string) bool {
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+
+	found := false
+	pq.tree.Ascend(func(i btree.Item) bool {
+		task := i.(Task)
+		if task.Name == taskName {
+			found = true
+			return false // Stop iteration
+		}
+		return true
+	})
+	return found
+}
