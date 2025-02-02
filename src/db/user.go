@@ -19,14 +19,14 @@ func InsertUser(db *sql.DB, user User) {
         log.Fatalf("Failed to marshal bot config: %v", err)
     }
 
-    insertUserSQL := `INSERT INTO users (user_id, first_name, last_name, bot_config) VALUES (?, ?, ?, ?, ?)`
+    insertUserSQL := `INSERT INTO users (user_id, first_name, last_name, bot_config) VALUES (?, ?, ?, ?)`
     statement, err := db.Prepare(insertUserSQL)
     if err != nil {
         log.Fatalf("Failed to prepare statement: %v", err)
     }
     defer statement.Close()
 
-    _, err = statement.Exec(user.UserID, user.FirstName, user.LastName, botConfigJSON, user.ExtraInfo)
+    _, err = statement.Exec(user.UserID, user.FirstName, user.LastName, botConfigJSON)
     if err != nil {
         log.Fatalf("Failed to insert user: %v", err)
     }
@@ -45,7 +45,7 @@ func UpdateUser(db *sql.DB, user User) {
     }
     defer statement.Close()
 
-    _, err = statement.Exec(user.FirstName, user.LastName, botConfigJSON, user.ExtraInfo, user.UserID)
+    _, err = statement.Exec(user.FirstName, user.LastName, botConfigJSON, user.UserID)
     if err != nil {
         log.Fatalf("Failed to update user: %v", err)
     }
@@ -56,7 +56,7 @@ func GetUser(db *sql.DB, userID int64) *User {
 
     var user User
     var botConfigJSON string
-    err := row.Scan(&user.UserID, &user.FirstName, &user.LastName, &botConfigJSON, &user.ExtraInfo)
+    err := row.Scan(&user.UserID, &user.FirstName, &user.LastName, &botConfigJSON)
     if err != nil {
         if err == sql.ErrNoRows {
             return nil
