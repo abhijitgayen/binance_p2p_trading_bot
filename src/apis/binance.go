@@ -1,4 +1,4 @@
-package main
+package apis
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -17,13 +17,15 @@ type BinanceAPI struct {
 	BaseURL   string
 	APIKey    string
 	SecretKey string
+	Config    map[string]interface{}
 }
 
-func NewBinanceAPI(baseURL, apiKey, secretKey string) *BinanceAPI {
+func NewBinanceAPI(baseURL, apiKey, secretKey string, config map[string]interface{}) *BinanceAPI {
 	return &BinanceAPI{
 		BaseURL:   baseURL,
 		APIKey:    apiKey,
 		SecretKey: secretKey,
+		Config:    config,
 	}
 }
 
@@ -53,8 +55,7 @@ func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interfa
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	bodyBytes, _ := io.ReadAll(resp.Body)
 	var response map[string]interface{}
 	json.Unmarshal(bodyBytes, &response)
 
@@ -62,7 +63,7 @@ func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interfa
 }
 
 // Fetch Ads
-func (b *BinanceAPI) searchAds(asset, fiat string, page, rows int, tradeType string) (map[string]interface{}, error) {
+func (b *BinanceAPI) SearchAds(asset, fiat string, page, rows int, tradeType string) (map[string]interface{}, error) {
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	query := fmt.Sprintf("asset=%s&fiat=%s&page=%d&rows=%d&tradeType=%s&timestamp=%s",
 		asset, fiat, page, rows, tradeType, timestamp)
@@ -79,7 +80,7 @@ func (b *BinanceAPI) searchAds(asset, fiat string, page, rows int, tradeType str
 }
 
 // Place Order
-func (b *BinanceAPI) placeOrder(advOrderNumber, asset, buyType, fiatUnit, tradeType string, matchPrice, totalAmount float64) (map[string]interface{}, error) {
+func (b *BinanceAPI) PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeType string, matchPrice, totalAmount float64) (map[string]interface{}, error) {
 	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	query := fmt.Sprintf("advOrderNumber=%s&asset=%s&buyType=%s&fiatUnit=%s&timestamp=%s",
 		advOrderNumber, asset, buyType, fiatUnit, timestamp)
@@ -92,8 +93,8 @@ func (b *BinanceAPI) placeOrder(advOrderNumber, asset, buyType, fiatUnit, tradeT
 		"matchPrice":     matchPrice,
 		"totalAmount":    totalAmount,
 		"tradeType":      tradeType,
-		"buyType":        "BY_MONEY",
-		"origin":         "MAKE_TAKE",
+		// "buyType":        "BY_MONEY",
+		"origin": "MAKE_TAKE",
 	}
 
 	return b.sendRequest("/sapi/v1/c2c/orderMatch/placeOrder", query, body)

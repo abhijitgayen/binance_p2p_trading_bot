@@ -1,56 +1,75 @@
 package priority_queue
 
 import (
-    "fmt"
-    "github.com/google/btree"
-    "sync"
-    "time"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/google/btree"
 )
 
 // Task represents a function-based task with a dynamic priority
 type Task struct {
-    Exec       func()  // Function to execute
-    PriorityFn func() int // Function to determine priority dynamically
-    Name       string  // Task name (for debugging)
+	Exec       func()     // Function to execute
+	PriorityFn func() int // Function to determine priority dynamically
+	Name       string     // Task name (for debugging)
+	Timestamp  time.Time  // Insertion time (tie-breaker)
 }
 
-// Less function to define priority comparison
+// Less function to define priority condition
 func (t Task) Less(other btree.Item) bool {
-    return t.PriorityFn() > other.(Task).PriorityFn()
+	otherTask := other.(Task)
+
+	// First, compare priorities
+	if t.PriorityFn() > otherTask.PriorityFn() {
+		return true
+	} else if t.PriorityFn() < otherTask.PriorityFn() {
+		return false
+	}
+
+	// If priority is the same, use timestamp as a tie-breaker
+	return t.Timestamp.Before(otherTask.Timestamp)
 }
 
 // PriorityQueue struct using btree
 type PriorityQueue struct {
-    tree      *btree.BTree
-    mu        sync.Mutex // Ensure thread safety
-    sleepTime time.Duration // Sleep time between task executions
+	tree      *btree.BTree
+	mu        sync.Mutex    // Ensure thread safety
+	sleepTime time.Duration // Sleep time between task executions
 }
 
 // NewPriorityQueue initializes a new priority queue with a specified sleep time
 func NewPriorityQueue(degree int, sleepTime time.Duration) *PriorityQueue {
-    return &PriorityQueue{
-        tree:      btree.New(degree),
-        sleepTime: sleepTime,
-    }
+	return &PriorityQueue{
+		tree:      btree.New(degree),
+		sleepTime: sleepTime,
+	}
 }
 
 // AddTask adds a new task to the priority queue
 func (pq *PriorityQueue) AddTask(task Task) {
-    pq.mu.Lock()
-    defer pq.mu.Unlock()
-    pq.tree.ReplaceOrInsert(task)
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+	pq.tree.ReplaceOrInsert(task)
 }
 
 // ProcessTasks processes all tasks in order of priority
 func (pq *PriorityQueue) ProcessTasks() {
-    pq.mu.Lock()
-    defer pq.mu.Unlock()
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
 
-    pq.tree.Ascend(func(i btree.Item) bool {
-        task := i.(Task)
-        fmt.Printf("Running: %s with priority %d\n", task.Name, task.PriorityFn())
-        task.Exec()
-        time.Sleep(pq.sleepTime) // Use the defined sleep time
-        return true
-    })
+	var tasksToRemove []btree.Item
+
+	pq.tree.Ascend(func(i btree.Item) bool {
+		task := i.(Task)
+		fmt.Printf("Running: %s with priority %d\n", task.Name, task.PriorityFn())
+		task.Exec()
+		tasksToRemove = append(tasksToRemove, i)
+		time.Sleep(pq.sleepTime) // Use the defined sleep time
+		return true
+	})
+
+	for _, task := range tasksToRemove {
+		pq.tree.Delete(task)
+	}
 }

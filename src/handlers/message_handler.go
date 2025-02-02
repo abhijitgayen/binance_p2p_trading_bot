@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
+	"go_binance_bot/src/apis"
 	"go_binance_bot/src/config"
 	"go_binance_bot/src/db"
 	"go_binance_bot/src/helpers/msg_gen"
+	"go_binance_bot/src/helpers/priority_queue"
+	"go_binance_bot/src/jobs"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -73,7 +77,7 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	case "stop":
 		stopHandler(bot, update)
 	case "run":
-		runHandler(bot, update)
+		runHandler(bot, update, user)
 	case "status":
 		statusHandler(bot, update)
 	case "get_config":
@@ -87,7 +91,7 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	case "about":
 		aboutHandler(bot, update)
 	default:
-		response = "Unknown command. Use /list to see available commands."
+		response = "Unknown command. Use /help to see available commands."
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, response)
 		bot.Send(msg)
 	}
@@ -99,15 +103,39 @@ func startHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	bot.Send(msg)
 }
 
-func stopHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	log.Println("Handling /stop command")
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 The bot has been stopped.")
+func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
+	log.Println("Handling /run command")
+
+	userID := update.Message.From.ID
+
+	apiKey, ok := user.BotConfig["api_key"].(string)
+	if !ok {
+		log.Fatalf("api_key not found or is not a string in user.BotConfig")
+	}
+
+	secretKey, ok := user.BotConfig["secret_key"].(string)
+	if !ok {
+		log.Fatalf("secret_key not found or is not a string in user.BotConfig")
+	}
+
+	api := apis.NewBinanceAPI("https://api.binance.com", apiKey, secretKey, user.BotConfig)
+	queue := priority_queue.NewPriorityQueue(2, 5*time.Second)
+
+	jobManager := jobs.GetJobManager()
+	jobManager.StartJob(userID, api, queue)
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🤖 The bot is running in the background!")
 	bot.Send(msg)
 }
 
-func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	log.Println("Handling /run command")
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🤖 The bot is running in the background!")
+func stopHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	log.Println("Handling /stop command")
+
+	userID := update.Message.From.ID
+	jobManager := jobs.GetJobManager()
+	jobManager.StopJob(userID)
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 The bot has been stopped.")
 	bot.Send(msg)
 }
 
@@ -132,17 +160,23 @@ func getConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 	bot.Send(msg)
 }
 
+// setConfigHandler processes the /set_config command and updates the user's bot configuration.
 func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
-	log.Println("Handling /set_config command")
+	log.Println("⚙️ Handling /set_config command")
+
 	if user == nil {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "User not found.")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "❌ *User not found.*")
+		msg.ParseMode = "Markdown"
 		bot.Send(msg)
 		return
 	}
 
 	args := strings.SplitN(update.Message.Text, " ", 3)
 	if len(args) < 3 {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Usage: /set_config <key> <value>\n\nExamples:\n/set_config ASSET BTC\n/set_config ExtraFilter.price 90\n/set_config ExtraFilter.error_codes 83999,84000")
+		helpMessage := "⚠️ *Incorrect Usage!*\n📌 Use the command in the following format:\n\n\t `/set_config <key> <value>`\n\n📝 *Examples:*\n\t🔹 `/set_config asset USDT`\n\t🔹 `/set_config extra_filter.price 90`\n\t🔹 `/set_config extra_filter.error_codes 83999,84000`"
+
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, helpMessage)
+		msg.ParseMode = "Markdown"
 		bot.Send(msg)
 		return
 	}
@@ -156,16 +190,19 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 		if len(keys) == 2 {
 			nestedKey := keys[0]
 			subKey := keys[1]
+
 			if nestedConfig, ok := user.BotConfig[nestedKey].(map[string]interface{}); ok {
 				nestedConfig[subKey] = value
 				user.BotConfig[nestedKey] = nestedConfig
 			} else {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid nested configuration key.")
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ *Invalid nested configuration key!*")
+				msg.ParseMode = "Markdown"
 				bot.Send(msg)
 				return
 			}
 		} else {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Invalid nested configuration key format.")
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ *Invalid nested configuration key format!*")
+			msg.ParseMode = "Markdown"
 			bot.Send(msg)
 			return
 		}
@@ -173,9 +210,17 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 		user.BotConfig[key] = value
 	}
 
+	// Update the user configuration in the database
 	db.UpdateUser(database, *user)
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Configuration updated: %s = %s \n\n To check the configuration, use the /get_config command.", key, value))
+	// Send success message
+	successMessage := fmt.Sprintf(
+		"✅ *Configuration Updated!*\n\n🛠 *%s* → `%s`\n\n📌 To check the configuration, use the /get\\_config command.",
+		key, value,
+	)
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, successMessage)
+	msg.ParseMode = "Markdown"
 	bot.Send(msg)
 }
 
