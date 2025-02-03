@@ -16,6 +16,7 @@ var (
 	BinanceURL           string
 	ProcessQueueInterval int
 	CallJobInterval      int
+	CreateOrderInterval  int
 )
 
 func LoadSettings() {
@@ -53,7 +54,6 @@ func LoadSettings() {
 	if ProcessQueueIntervalStr == "" {
 		log.Fatal("PROCESS_QUEUE_INTERVAL environment variable is required")
 	}
-
 	ProcessQueueInterval, err = strconv.Atoi(ProcessQueueIntervalStr)
 	if err != nil {
 		log.Fatalf("Invalid PROCESS_QUEUE_INTERVAL value: %v", err)
@@ -63,8 +63,16 @@ func LoadSettings() {
 	if callJobIntervalStr == "" {
 		log.Fatal("CALL_JOB_INTERVAL environment variable is required")
 	}
-
 	CallJobInterval, err = strconv.Atoi(callJobIntervalStr)
+	if err != nil {
+		log.Fatalf("Invalid CALL_JOB_INTERVAL value: %v", err)
+	}
+
+	createOrderIntervalStr := os.Getenv("CREATE_ORDER_INTERVAL")
+	if createOrderIntervalStr == "" {
+		log.Fatal("CREATE_ORDER_INTERVAL environment variable is required")
+	}
+	CreateOrderInterval, err = strconv.Atoi(createOrderIntervalStr)
 	if err != nil {
 		log.Fatalf("Invalid CALL_JOB_INTERVAL value: %v", err)
 	}
@@ -77,5 +85,6 @@ func LoadSettings() {
 	log.Printf("BINANCE_URL: %s\n", BinanceURL)
 	log.Printf("PROCESS_QUEUE_INTERVAL: %d\n", ProcessQueueInterval)
 	log.Printf("CALL_JOB_INTERVAL: %d\n", CallJobInterval)
+	log.Printf("CREATE_ORDER_INTERVAL: %d\n", CreateOrderInterval)
 	log.Printf("*************Loaded settings****************\n\n")
 }

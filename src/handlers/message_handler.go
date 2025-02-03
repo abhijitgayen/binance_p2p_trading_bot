@@ -128,7 +128,7 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 	}
 
 	api := apis.NewBinanceAPI(config.BinanceURL, apiKey, secretKey, user.BotConfig)
-	queue := priority_queue.NewPriorityQueue(2, 5*time.Second)
+	queue := priority_queue.NewPriorityQueue(2, time.Duration(config.CreateOrderInterval)*time.Second)
 
 	jobManager.StartJob(userID, api, queue, bot, update.Message.Chat.ID)
 	if jobManager.IsJobRunning(userID) {

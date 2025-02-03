@@ -3,6 +3,7 @@ package jobs
 import (
 	"fmt"
 	"go_binance_bot/src/apis"
+	"go_binance_bot/src/config"
 	"go_binance_bot/src/helpers/msg_gen"
 	"go_binance_bot/src/helpers/priority_queue"
 	"log"
@@ -58,7 +59,7 @@ func (j *Job) Run() {
 				return
 			default:
 				j.Queue.ProcessTasks()
-				time.Sleep(1 * time.Second)
+				time.Sleep(time.Duration(config.ProcessQueueInterval) * time.Second)
 			}
 		}
 	}()
@@ -76,7 +77,7 @@ func (j *Job) Run() {
 			j.ListAdsAndCreateOrders(asset, fiat, page, rows, tradeType)
 			j.lastRunTime = time.Now()
 			j.totalRuns++
-			time.Sleep(1 * time.Second)
+			time.Sleep(time.Duration(config.CallJobInterval) * time.Second)
 		}
 	}
 }
