@@ -17,6 +17,7 @@ var (
 	ProcessQueueInterval int
 	CallJobInterval      int
 	CreateOrderInterval  int
+	NotifyUserId         int64
 )
 
 func LoadSettings() {
@@ -75,6 +76,15 @@ func LoadSettings() {
 	CreateOrderInterval, err = strconv.Atoi(createOrderIntervalStr)
 	if err != nil {
 		log.Fatalf("Invalid CALL_JOB_INTERVAL value: %v", err)
+	}
+
+	NotifyUserIdStr := os.Getenv("NOTIFY_USER_ID")
+	if NotifyUserIdStr == "" {
+		log.Fatal("NOTIFY_USER_ID environment variable is required")
+	}
+	NotifyUserId, err = strconv.ParseInt(NotifyUserIdStr, 10, 64)
+	if err != nil {
+		log.Fatalf("Invalid NOTIFY_USER_ID value: %v", err)
 	}
 
 	// Log all loaded settings for verification

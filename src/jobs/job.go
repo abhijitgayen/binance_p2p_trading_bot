@@ -151,6 +151,8 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 	ads, ok := adsResponse["data"].([]interface{})
 	if !ok {
 		log.Printf("Invalid ads response format")
+		message := fmt.Sprintf(" 🛑 List Ads Fails 🛑 \n\n Error: %s \n Use command  /stop to the job", "Invalid ads response format")
+		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 		return
 	}
 
@@ -368,6 +370,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		)
 
 		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
+		j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, message))
 		return fmt.Errorf("order creation failed for %s", advOrderNumber)
 	}
 
@@ -377,6 +380,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 	orderDetailsMsg := msg_gen.GenerateOrderMessage(orderResponse)
 	message := fmt.Sprintf("🎉 Order Success 🎉 \n\n%s \n\n%s", orderMessage, orderDetailsMsg)
 	j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
+	j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, message))
 
 	return nil
 }
