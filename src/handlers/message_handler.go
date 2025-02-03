@@ -160,7 +160,7 @@ func stopHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	jobManager := jobs.GetJobManager()
 	jobManager.StopJob(userID)
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 The bot has been stopped.")
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 The bot has been stopped.\n\nUse the command /run to Run the Job")
 	bot.Send(msg)
 }
 

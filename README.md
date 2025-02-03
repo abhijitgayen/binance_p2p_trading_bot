@@ -43,8 +43,23 @@ To run the bot, execute the following command:
 go run src/main.go
 ```
 
-The bot will start and listen for incoming messages. You can interact with it through Telegram.
+## build
 
-## Contributing
+```
+go build -o bin/go_binance_bot src/main.go
+```
 
-Feel free to submit issues or pull requests if you have suggestions or improvements!
+## Docker
+
+### Build Docker Image
+
+Builds the Docker image and tags it as go_binance_bot.
+
+```bash
+docker build -t go_binance_bot .
+```
+### Run Docker Container
+
+```bash
+docker run --env-file .env -p go_binance_bot
+```
