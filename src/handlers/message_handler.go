@@ -140,7 +140,7 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 		log.Fatalf("secret_key not found or is not a string in user.BotConfig")
 	}
 
-	api := apis.NewBinanceAPI("https://api.binance.com", apiKey, secretKey, user.BotConfig)
+	api := apis.NewBinanceAPI( config.BinanceURL, apiKey, secretKey, user.BotConfig)
 	queue := priority_queue.NewPriorityQueue(2, 5*time.Second)
 
 	jobManager.StartJob(userID, api, queue, bot, update.Message.Chat.ID)

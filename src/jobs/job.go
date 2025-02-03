@@ -58,7 +58,7 @@ func (j *Job) Run() {
 				return
 			default:
 				j.Queue.ProcessTasks()
-				time.Sleep(1 * time.Second) // Adjust the sleep time as needed
+				time.Sleep(1 * time.Second)
 			}
 		}
 	}()
@@ -74,9 +74,9 @@ func (j *Job) Run() {
 			rows := getConfigIntValue(j.BinanceAPI.Config, "rows", 2)
 			tradeType := getConfigValue(j.BinanceAPI.Config, "trade_type", "BUY")
 			j.ListAdsAndCreateOrders(asset, fiat, page, rows, tradeType)
-			j.lastRunTime = time.Now()  // Update last run time
-			j.totalRuns++               // Increment total runs
-			time.Sleep(1 * time.Second) // Adjust the sleep time as needed
+			j.lastRunTime = time.Now()
+			j.totalRuns++
+			time.Sleep(1 * time.Second)
 		}
 	}
 }
