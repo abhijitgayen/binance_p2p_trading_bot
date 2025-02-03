@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -21,20 +22,6 @@ import (
 
 var authorizedUsers = map[int64]bool{}
 var database *sql.DB
-
-var expectedDataTypes = map[string]string{
-	"asset":                    "string",
-	"fiat":                     "string",
-	"page":                     "int",
-	"rows":                     "int",
-	"api_key":                  "string",
-	"secret_key":               "string",
-	"total_orders":             "int",
-	"total_amount_to_invest":   "float64",
-	"trade_type":               "string",
-	"extra_filter.price":       "float64",
-	"extra_filter.error_codes": "string", // Assuming error codes are provided as a comma-separated string
-}
 
 func SetAuthorizedUsers(users map[int64]bool) {
 	authorizedUsers = users
@@ -214,16 +201,16 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 	key := args[1]
 	value := args[2]
 
-	// Convert value to the appropriate data type
-	convertedValue := convertValue(value)
-
-	// Validate the data type of the converted value
-	if !validateDataType(key, convertedValue) {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ *Invalid data type for the given key!*")
+	// Validate the key and type
+	if !validateKeyAndType(key, value) {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("⚠️ *Invalid configuration key or type: %s*", key))
 		msg.ParseMode = "Markdown"
 		bot.Send(msg)
 		return
 	}
+
+	// Convert value to the appropriate data type
+	convertedValue := convertValue(value)
 
 	// Check if the key refers to a nested configuration
 	if strings.Contains(key, ".") {
@@ -233,6 +220,14 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 			subKey := keys[1]
 
 			if nestedConfig, ok := user.BotConfig[nestedKey].(map[string]interface{}); ok {
+				// Check if the value is the same
+				if existingValue, exists := nestedConfig[subKey]; exists && existingValue == convertedValue {
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("⚠️ *The configuration for %s.%s is already set to the given value.*", nestedKey, subKey))
+					msg.ParseMode = "Markdown"
+					bot.Send(msg)
+					return
+				}
+
 				nestedConfig[subKey] = convertedValue
 				user.BotConfig[nestedKey] = nestedConfig
 			} else {
@@ -248,6 +243,14 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 			return
 		}
 	} else {
+		// Check if the value is the same
+		if existingValue, exists := user.BotConfig[key]; exists && existingValue == convertedValue {
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("⚠️ *The configuration for %s is already set to the given value.*", key))
+			msg.ParseMode = "Markdown"
+			bot.Send(msg)
+			return
+		}
+
 		user.BotConfig[key] = convertedValue
 	}
 
@@ -263,6 +266,40 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, successMessage)
 	msg.ParseMode = "Markdown"
 	bot.Send(msg)
+}
+
+func validateKeyAndType(key, value string) bool {
+	keys := strings.Split(key, ".")
+	var field reflect.StructField
+	var ok bool
+
+	if len(keys) == 2 {
+		field, ok = reflect.TypeOf(config.DefaultBotConfig.ExtraFilter).FieldByNameFunc(func(name string) bool {
+			return strings.EqualFold(name, keys[1])
+		})
+	} else {
+		field, ok = reflect.TypeOf(config.DefaultBotConfig).FieldByNameFunc(func(name string) bool {
+			return strings.EqualFold(name, keys[0])
+		})
+	}
+
+	if !ok {
+		return false
+	}
+
+	// Validate the type
+	switch field.Type.Kind() {
+	case reflect.String:
+		return true
+	case reflect.Int:
+		_, err := strconv.Atoi(value)
+		return err == nil
+	case reflect.Float64:
+		_, err := strconv.ParseFloat(value, 64)
+		return err == nil
+	default:
+		return false
+	}
 }
 
 // convertValue attempts to convert a string value to an int, float64, or bool
@@ -320,28 +357,4 @@ func aboutHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /about command")
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "A secure bot for seamless peer-to-peer trading on Binance, allowing authorized users to easily execute buy and sell orders.")
 	bot.Send(msg)
-}
-
-func validateDataType(key string, value interface{}) bool {
-	expectedType, exists := expectedDataTypes[key]
-	if !exists {
-		return true // If the key is not in the expectedDataTypes map, assume it's valid
-	}
-
-	switch expectedType {
-	case "string":
-		_, ok := value.(string)
-		return ok
-	case "int":
-		_, ok := value.(int)
-		return ok
-	case "float64":
-		_, ok := value.(float64)
-		return ok
-	case "bool":
-		_, ok := value.(bool)
-		return ok
-	default:
-		return false
-	}
 }
