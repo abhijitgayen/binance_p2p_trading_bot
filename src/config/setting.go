@@ -44,7 +44,7 @@ func LoadSettings() {
 		AuthorizedUsers[userID] = true
 	}
 
-	BinanceURL := os.Getenv("BINANCE_URL")
+	BinanceURL = os.Getenv("BINANCE_URL")
 	if BinanceURL == "" {
 		log.Fatal("BINANCE_URL environment variable is required")
 	}

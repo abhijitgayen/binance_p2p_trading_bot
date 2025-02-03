@@ -146,6 +146,8 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 		return
 	}
 
+	fmt.Println("adsResponse", adsResponse)
+
 	// Extract ads from response
 	ads, ok := adsResponse["data"].([]interface{})
 	if !ok {

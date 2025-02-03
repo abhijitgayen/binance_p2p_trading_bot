@@ -97,7 +97,7 @@ docker build -t go_binance_bot .
 ### Run Docker Container
 
 ```bash
-docker run --env-file .env -p go_binance_bot
+docker run --env-file .env go_binance_bot
 ```
 
 ### Mount the db also
