@@ -56,22 +56,37 @@ func (pq *PriorityQueue) AddTask(task Task) {
 // ProcessTasks processes all tasks in order of priority
 func (pq *PriorityQueue) ProcessTasks() {
 	pq.mu.Lock()
-	defer pq.mu.Unlock()
-
 	var tasksToRemove []btree.Item
 
+	// Collect tasks first
 	pq.tree.Ascend(func(i btree.Item) bool {
-		task := i.(Task)
-		fmt.Printf("Running: %s with priority %d\n", task.Name, task.PriorityFn())
-		task.Exec()
 		tasksToRemove = append(tasksToRemove, i)
-		time.Sleep(pq.sleepTime) // Use the defined sleep time
 		return true
 	})
 
+	pq.mu.Unlock() // Unlock before executing tasks
+
+	// Execute tasks outside the lock
 	for _, task := range tasksToRemove {
+		task := task.(Task)
+		fmt.Printf("Running: %s with priority %d\n", task.Name, task.PriorityFn())
+		task.Exec()
+		time.Sleep(pq.sleepTime)
+
+		// Remove task after execution
+		pq.mu.Lock()
 		pq.tree.Delete(task)
+		pq.mu.Unlock()
 	}
+}
+
+// Clear clears the priority queue and stops processing tasks
+func (pq *PriorityQueue) Clear() {
+	pq.mu.Lock()
+	defer pq.mu.Unlock()
+
+	fmt.Println("Clearing the priority queue")
+	pq.tree.Clear(true)
 }
 
 func (pq *PriorityQueue) ContainsTask(taskName string) bool {

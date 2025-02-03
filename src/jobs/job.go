@@ -20,13 +20,15 @@ type AdInfo struct {
 }
 
 type Job struct {
-	BinanceAPI *apis.BinanceAPI
-	Queue      *priority_queue.PriorityQueue
-	stopChan   chan struct{}
-	adsTracker map[string]*AdInfo
-	wg         sync.WaitGroup
-	bot        *tgbotapi.BotAPI
-	chatID     int64
+	BinanceAPI  *apis.BinanceAPI
+	Queue       *priority_queue.PriorityQueue
+	stopChan    chan struct{}
+	adsTracker  map[string]*AdInfo
+	wg          sync.WaitGroup
+	bot         *tgbotapi.BotAPI
+	chatID      int64
+	lastRunTime time.Time
+	totalRuns   int
 }
 
 func NewJob(api *apis.BinanceAPI, queue *priority_queue.PriorityQueue, bot *tgbotapi.BotAPI, chatID int64) *Job {
@@ -63,9 +65,11 @@ func (j *Job) Run() {
 			asset := getConfigValue(j.BinanceAPI.Config, "asset", "USDT")
 			fiat := getConfigValue(j.BinanceAPI.Config, "fiat", "INR")
 			page := getConfigIntValue(j.BinanceAPI.Config, "page", 1)
-			rows := getConfigIntValue(j.BinanceAPI.Config, "rows", 20)
+			rows := getConfigIntValue(j.BinanceAPI.Config, "rows", 2)
 			tradeType := getConfigValue(j.BinanceAPI.Config, "trade_type", "BUY")
 			j.ListAdsAndCreateOrders(asset, fiat, page, rows, tradeType)
+			j.lastRunTime = time.Now()  // Update last run time
+			j.totalRuns++               // Increment total runs
 			time.Sleep(1 * time.Second) // Adjust the sleep time as needed
 		}
 	}
@@ -94,6 +98,8 @@ func getConfigFloatValue(config map[string]interface{}, key string, defaultValue
 
 func (j *Job) Stop() {
 	close(j.stopChan)
+	j.Queue.Clear() // Clear the priority queue and stop processing tasks
+	fmt.Println("Stopping the job")
 }
 
 func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeType string) {
@@ -179,6 +185,8 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 		}
 
 		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
+
+		// fmt.Printf("Price: %.2f, Target Price: %.2f\n", price, targetPrice)
 
 		if price > targetPrice {
 			continue

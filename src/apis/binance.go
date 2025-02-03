@@ -58,7 +58,6 @@ func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interfa
 	bodyBytes, _ := io.ReadAll(resp.Body)
 	var response map[string]interface{}
 	json.Unmarshal(bodyBytes, &response)
-
 	return response, nil
 }
 

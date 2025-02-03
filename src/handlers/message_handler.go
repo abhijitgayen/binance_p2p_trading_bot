@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +21,16 @@ import (
 
 var authorizedUsers = map[int64]bool{}
 var database *sql.DB
+
+var expectedDataTypes = map[string]string{
+	"asset":                    "string",
+	"fiat":                     "string",
+	"page":                     "int",
+	"rows":                     "int",
+	"trade_type":               "string",
+	"extra_filter.price":       "float64",
+	"extra_filter.error_codes": "string", // Assuming error codes are provided as a comma-separated string
+}
 
 func SetAuthorizedUsers(users map[int64]bool) {
 	authorizedUsers = users
@@ -108,6 +119,13 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 
 	userID := update.Message.From.ID
 
+	jobManager := jobs.GetJobManager()
+	if jobManager.IsJobRunning(userID) {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ A job is already running for your user ID.")
+		bot.Send(msg)
+		return
+	}
+
 	apiKey, ok := user.BotConfig["api_key"].(string)
 	if !ok {
 		log.Fatalf("api_key not found or is not a string in user.BotConfig")
@@ -118,21 +136,17 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 		log.Fatalf("secret_key not found or is not a string in user.BotConfig")
 	}
 
-	if apiKey == "" || secretKey == "" {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "❌ *API Key or Secret Key not found in configuration.* \n\n📌 Use the /set\\_config command to set \nthe API Key and Secret Key.")
-		msg.ParseMode = "Markdown"
-		bot.Send(msg)
-		return
-	}
-
 	api := apis.NewBinanceAPI("https://api.binance.com", apiKey, secretKey, user.BotConfig)
 	queue := priority_queue.NewPriorityQueue(2, 5*time.Second)
 
-	jobManager := jobs.GetJobManager()
 	jobManager.StartJob(userID, api, queue, bot, update.Message.Chat.ID)
-
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🤖 The bot is running in the background!")
-	bot.Send(msg)
+	if jobManager.IsJobRunning(userID) {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🤖 The bot is running in the background!")
+		bot.Send(msg)
+	} else {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ Failed to start the job.")
+		bot.Send(msg)
+	}
 }
 
 func stopHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
@@ -148,7 +162,12 @@ func stopHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 func statusHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /status command")
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "✅ The bot is up and running! 🚀")
+
+	userID := update.Message.From.ID
+	jobManager := jobs.GetJobManager()
+	status := jobManager.GetJobStatus(userID)
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("✅ The bot is up and running Status! 🚀\n\n%s", status))
 	bot.Send(msg)
 }
 
@@ -191,6 +210,17 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 	key := args[1]
 	value := args[2]
 
+	// Convert value to the appropriate data type
+	convertedValue := convertValue(value)
+
+	// Validate the data type of the converted value
+	if !validateDataType(key, convertedValue) {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ *Invalid data type for the given key!*")
+		msg.ParseMode = "Markdown"
+		bot.Send(msg)
+		return
+	}
+
 	// Check if the key refers to a nested configuration
 	if strings.Contains(key, ".") {
 		keys := strings.Split(key, ".")
@@ -199,7 +229,7 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 			subKey := keys[1]
 
 			if nestedConfig, ok := user.BotConfig[nestedKey].(map[string]interface{}); ok {
-				nestedConfig[subKey] = value
+				nestedConfig[subKey] = convertedValue
 				user.BotConfig[nestedKey] = nestedConfig
 			} else {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ *Invalid nested configuration key!*")
@@ -214,7 +244,7 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 			return
 		}
 	} else {
-		user.BotConfig[key] = value
+		user.BotConfig[key] = convertedValue
 	}
 
 	// Update the user configuration in the database
@@ -222,13 +252,34 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 
 	// Send success message
 	successMessage := fmt.Sprintf(
-		"✅ *Configuration Updated!*\n\n🛠 *%s* → `%s`\n\n📌 To check the configuration, use the /get\\_config command.",
-		key, value,
+		"✅ *Configuration Updated!*\n\n🛠 *%s* → `%v`\n\n📌 To check the configuration, use the /get\\_config command.",
+		key, convertedValue,
 	)
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, successMessage)
 	msg.ParseMode = "Markdown"
 	bot.Send(msg)
+}
+
+// convertValue attempts to convert a string value to an int, float64, or bool
+func convertValue(value string) interface{} {
+	// Try to convert to int
+	if intValue, err := strconv.Atoi(value); err == nil {
+		return intValue
+	}
+
+	// Try to convert to float64
+	if floatValue, err := strconv.ParseFloat(value, 64); err == nil {
+		return floatValue
+	}
+
+	// Try to convert to bool
+	if boolValue, err := strconv.ParseBool(value); err == nil {
+		return boolValue
+	}
+
+	// Return the original string if no conversion was successful
+	return value
 }
 
 func resetHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
@@ -265,4 +316,28 @@ func aboutHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /about command")
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "A secure bot for seamless peer-to-peer trading on Binance, allowing authorized users to easily execute buy and sell orders.")
 	bot.Send(msg)
+}
+
+func validateDataType(key string, value interface{}) bool {
+	expectedType, exists := expectedDataTypes[key]
+	if !exists {
+		return true // If the key is not in the expectedDataTypes map, assume it's valid
+	}
+
+	switch expectedType {
+	case "string":
+		_, ok := value.(string)
+		return ok
+	case "int":
+		_, ok := value.(int)
+		return ok
+	case "float64":
+		_, ok := value.(float64)
+		return ok
+	case "bool":
+		_, ok := value.(bool)
+		return ok
+	default:
+		return false
+	}
 }
