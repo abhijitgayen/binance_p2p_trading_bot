@@ -49,41 +49,41 @@ func (jm *JobManager) StopJob(userID int64) {
 }
 
 func (jm *JobManager) GetJobStatus(userID int64) string {
-    jm.mu.Lock()
-    defer jm.mu.Unlock()
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
 
-    job, exists := jm.jobs[userID]
-    if (!exists) {
-        return "No job is currently running for your user ID."
-    }
+	job, exists := jm.jobs[userID]
+	if !exists {
+		return "No job is currently running for your user ID."
+	}
 
-    lastRunDuration := time.Since(job.lastRunTime)
-    var lastRunTimeStr string
-    if lastRunDuration < time.Millisecond {
-        lastRunTimeStr = fmt.Sprintf("%d microseconds ago", int(lastRunDuration.Microseconds()))
-    } else if lastRunDuration < time.Second {
-        lastRunTimeStr = fmt.Sprintf("%d milliseconds ago", int(lastRunDuration.Milliseconds()))
-    } else if lastRunDuration < time.Minute {
-        lastRunTimeStr = fmt.Sprintf("%d seconds ago", int(lastRunDuration.Seconds()))
-    } else if lastRunDuration < time.Hour {
-        lastRunTimeStr = fmt.Sprintf("%d minutes ago", int(lastRunDuration.Minutes()))
-    } else if lastRunDuration < 24*time.Hour {
-        lastRunTimeStr = fmt.Sprintf("%d hours ago", int(lastRunDuration.Hours()))
-    } else {
-        lastRunTimeStr = fmt.Sprintf("%d days ago", int(lastRunDuration.Hours()/24))
-    }
+	lastRunDuration := time.Since(job.lastRunTime)
+	var lastRunTimeStr string
+	if lastRunDuration < time.Millisecond {
+		lastRunTimeStr = fmt.Sprintf("%d microseconds ago", int(lastRunDuration.Microseconds()))
+	} else if lastRunDuration < time.Second {
+		lastRunTimeStr = fmt.Sprintf("%d milliseconds ago", int(lastRunDuration.Milliseconds()))
+	} else if lastRunDuration < time.Minute {
+		lastRunTimeStr = fmt.Sprintf("%d seconds ago", int(lastRunDuration.Seconds()))
+	} else if lastRunDuration < time.Hour {
+		lastRunTimeStr = fmt.Sprintf("%d minutes ago", int(lastRunDuration.Minutes()))
+	} else if lastRunDuration < 24*time.Hour {
+		lastRunTimeStr = fmt.Sprintf("%d hours ago", int(lastRunDuration.Hours()))
+	} else {
+		lastRunTimeStr = fmt.Sprintf("%d days ago", int(lastRunDuration.Hours()/24))
+	}
 
-    status := fmt.Sprintf(
-        "Running Job for User ID: %d\nChat ID: %d\nLast Run Time: %s\nTotal Runs: %d\n",
-        userID, job.chatID, lastRunTimeStr, job.totalRuns,
-    )
-    return status
+	status := fmt.Sprintf(
+		"Running Job \nUser ID: %d\nChat ID: %d\nLast Run Time: %s\nTotal Runs: %d\n",
+		userID, job.chatID, lastRunTimeStr, job.totalRuns,
+	)
+	return status
 }
 
 func (jm *JobManager) IsJobRunning(userID int64) bool {
-    jm.mu.Lock()
-    defer jm.mu.Unlock()
+	jm.mu.Lock()
+	defer jm.mu.Unlock()
 
-    _, exists := jm.jobs[userID]
-    return exists
+	_, exists := jm.jobs[userID]
+	return exists
 }

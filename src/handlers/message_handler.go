@@ -27,6 +27,10 @@ var expectedDataTypes = map[string]string{
 	"fiat":                     "string",
 	"page":                     "int",
 	"rows":                     "int",
+	"api_key":                  "string",
+	"secret_key":               "string",
+	"total_orders":             "int",
+	"total_amount_to_invest":   "float64",
 	"trade_type":               "string",
 	"extra_filter.price":       "float64",
 	"extra_filter.error_codes": "string", // Assuming error codes are provided as a comma-separated string

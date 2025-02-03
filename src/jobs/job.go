@@ -3,6 +3,7 @@ package jobs
 import (
 	"fmt"
 	"go_binance_bot/src/apis"
+	"go_binance_bot/src/helpers/msg_gen"
 	"go_binance_bot/src/helpers/priority_queue"
 	"log"
 	"strconv"
@@ -20,15 +21,17 @@ type AdInfo struct {
 }
 
 type Job struct {
-	BinanceAPI  *apis.BinanceAPI
-	Queue       *priority_queue.PriorityQueue
-	stopChan    chan struct{}
-	adsTracker  map[string]*AdInfo
-	wg          sync.WaitGroup
-	bot         *tgbotapi.BotAPI
-	chatID      int64
-	lastRunTime time.Time
-	totalRuns   int
+	BinanceAPI          *apis.BinanceAPI
+	Queue               *priority_queue.PriorityQueue
+	stopChan            chan struct{}
+	adsTracker          map[string]*AdInfo
+	wg                  sync.WaitGroup
+	bot                 *tgbotapi.BotAPI
+	chatID              int64
+	lastRunTime         time.Time
+	totalRuns           int
+	TotalAmountToInvest float64
+	NoOfOrders          int
 }
 
 func NewJob(api *apis.BinanceAPI, queue *priority_queue.PriorityQueue, bot *tgbotapi.BotAPI, chatID int64) *Job {
@@ -43,6 +46,9 @@ func NewJob(api *apis.BinanceAPI, queue *priority_queue.PriorityQueue, bot *tgbo
 }
 
 func (j *Job) Run() {
+	j.TotalAmountToInvest = getConfigFloatValue(j.BinanceAPI.Config, "total_amount_to_invest", 0)
+	j.NoOfOrders = getConfigIntValue(j.BinanceAPI.Config, "no_of_orders", 1)
+
 	j.wg.Add(1)
 	go func() {
 		defer j.wg.Done()
@@ -319,6 +325,21 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 	}
 
 	totalAmount := getOrderAmount(matchPrice, maxSingleTransAmount, minSingleTransAmount, surplusAmount)
+	orderMessage := fmt.Sprintf(
+		"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
+		advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
+	)
+
+	if (j.TotalAmountToInvest - totalAmount) < 0 {
+		if j.TotalAmountToInvest > minSingleTransAmount {
+			totalAmount = j.TotalAmountToInvest
+		} else {
+			message := fmt.Sprintf(" 🛑 Inappropriate Amount 🛑 \n\n %s \n Use command  /stop to the job", orderMessage)
+			j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
+			j.adsTracker[taskName].HasError = true
+			return fmt.Errorf("inappropriate amount")
+		}
+	}
 
 	// Simulate an error for demonstration purposes
 	orderResponse, err := j.BinanceAPI.PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeType, matchPrice, totalAmount)
@@ -327,11 +348,6 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		j.adsTracker[taskName].HasError = true
 		return err
 	}
-
-	orderMessage := fmt.Sprintf(
-		"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
-		advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
-	)
 
 	// Check if "success" key exists and is a boolean
 	if success, ok := orderResponse["success"].(bool); !ok || !success {
@@ -353,6 +369,13 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 		return fmt.Errorf("order creation failed for %s", advOrderNumber)
 	}
+
+	j.TotalAmountToInvest -= totalAmount
+	j.NoOfOrders--
+
+	orderDetailsMsg := msg_gen.GenerateOrderMessage(orderResponse)
+	message := fmt.Sprintf("🎉 Order Success 🎉 \n\n%s \n\n%s", orderMessage, orderDetailsMsg)
+	j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 
 	return nil
 }
