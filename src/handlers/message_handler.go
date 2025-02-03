@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"go_binance_bot/src/config"
@@ -35,6 +36,11 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	if !isAuthorized(userID) {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 You are not authorized to use this bot.")
 		bot.Send(msg)
+
+		adminMessage := fmt.Sprintf("Unauthorized access attempt:\nUser ID: %d\nUsername: %s\nFirst Name: %s\nLast Name: %s",
+			userID, update.Message.From.UserName, update.Message.From.FirstName, update.Message.From.LastName)
+		adminMsg := tgbotapi.NewMessage(config.NotifyUserId, adminMessage)
+		bot.Send(adminMsg)
 		return
 	}
 
@@ -62,8 +68,6 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 		db.InsertUser(database, *user)
 	}
 
-	var response string
-
 	switch update.Message.Command() {
 	case "start":
 		startHandler(bot, update)
@@ -83,9 +87,21 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 		helpHandler(bot, update)
 	case "about":
 		aboutHandler(bot, update)
+	case "admin_run_job":
+		adminRunJobHandler(bot, update)
+	case "admin_stop_job":
+		adminStopJobHandler(bot, update)
+	case "admin_job_status":
+		adminJobStatusHandler(bot, update)
+	case "admin_help":
+		adminHelpHandler(bot, update)
 	default:
-		response = "Unknown command. Use /help to see available commands."
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, response)
-		bot.Send(msg)
+		defaultHandler(bot, update)
 	}
+}
+
+func defaultHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	response := "Unknown command. Use /help to see available commands."
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, response)
+	bot.Send(msg)
 }
