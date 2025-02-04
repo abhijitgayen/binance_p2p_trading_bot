@@ -54,7 +54,7 @@ func (jm *JobManager) GetJobStatus(userID int64) string {
 
 	job, exists := jm.jobs[userID]
 	if !exists {
-		return "No job is currently running for your user ID."
+		return "No job is currently running."
 	}
 
 	lastRunDuration := time.Since(job.lastRunTime)
@@ -73,10 +73,8 @@ func (jm *JobManager) GetJobStatus(userID int64) string {
 		lastRunTimeStr = fmt.Sprintf("%d days ago", int(lastRunDuration.Hours()/24))
 	}
 
-	status := fmt.Sprintf(
-		"Running Job \nUser ID: %d\nChat ID: %d\nLast Run Time: %s\nTotal Runs: %d\n",
-		userID, job.chatID, lastRunTimeStr, job.totalRuns,
-	)
+	status := fmt.Sprintf("Last Run Time: %s\nTotal Runs: %d\n", lastRunTimeStr, job.totalRuns)
+
 	return status
 }
 

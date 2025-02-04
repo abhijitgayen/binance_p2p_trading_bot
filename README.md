@@ -109,8 +109,6 @@ docker run -d --env-file .env -v $(pwd)/database:/database --name telegram_bot_m
 ## TODO:
 1. Need to fix docker support to delpoy app
 2. Some Bugs fixes
-   - admin flow test and fix some part.
-   - put the tracker properly.
    - `system error` why coming in api call -> expected it will be solved
 3. Find out the way to make a parallel request
    

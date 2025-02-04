@@ -117,7 +117,7 @@ func adminJobStatusHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 	for _, user := range users {
 		status := jobManager.GetJobStatus(user.UserID)
-		statusMessage.WriteString(fmt.Sprintf("User ID %d:\n%s\n\n", user.UserID, status))
+		statusMessage.WriteString(fmt.Sprintf("User ID: %d\nName: %s \n%s\n\n", user.UserID, user.FirstName, status))
 	}
 
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, statusMessage.String())

@@ -396,7 +396,8 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		)
 
 		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
-		j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, message))
+		adminMessage := fmt.Sprintf("User ID: %d\n%s", j.chatID, message)
+		j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, adminMessage))
 		return fmt.Errorf("order creation failed for %s", advOrderNumber)
 	}
 
@@ -406,7 +407,8 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 	orderDetailsMsg := msg_gen.GenerateOrderMessage(orderResponse)
 	message := fmt.Sprintf("🎉 Order Success 🎉 \n\n%s \n\n%s", orderMessage, orderDetailsMsg)
 	j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
-	j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, message))
+	adminMessage := fmt.Sprintf("User ID: %d\n%s", j.chatID, message)
+	j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, adminMessage))
 
 	return nil
 }
