@@ -59,7 +59,7 @@ func (j *Job) Run() {
 				return
 			default:
 				j.Queue.ProcessTasks()
-				time.Sleep(time.Duration(config.ProcessQueueInterval) * time.Second)
+				time.Sleep(200 * time.Millisecond)
 			}
 		}
 	}()
@@ -332,6 +332,8 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
 		advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
 	)
+
+	fmt.Printf("TotalAmountToInvest: %.2f, TotalAmount: %.2f\n", j.TotalAmountToInvest, totalAmount)
 
 	if (j.TotalAmountToInvest - totalAmount) < 0 {
 		if j.TotalAmountToInvest > minSingleTransAmount {

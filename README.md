@@ -105,3 +105,15 @@ docker run --env-file .env go_binance_bot
 ```bash
 docker run -d --env-file .env -v $(pwd)/database:/database --name telegram_bot_my go_binance_bot
 ```
+
+## TODO:
+1. Need to fix docker support to delpoy app
+2. Some Bugs fixes
+   - set config some problem. Not working properly.
+   - admin flow test and fix some part.
+   - put the tracker properly.
+   - minimum ammount filter not working
+   - `system error` why coming in api call 
+   - totalamount and investment amount is not working
+3. Find out the way to make a parallel request
+   

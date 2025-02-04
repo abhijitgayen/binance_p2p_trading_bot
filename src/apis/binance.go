@@ -90,10 +90,9 @@ func (b *BinanceAPI) PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeT
 		"buyType":        buyType,
 		"fiatUnit":       fiatUnit,
 		"matchPrice":     matchPrice,
+		"origin":         "MAKE_TAKE",
 		"totalAmount":    totalAmount,
 		"tradeType":      tradeType,
-		// "buyType":        "BY_MONEY",
-		"origin": "MAKE_TAKE",
 	}
 
 	return b.sendRequest("/sapi/v1/c2c/orderMatch/placeOrder", query, body)
