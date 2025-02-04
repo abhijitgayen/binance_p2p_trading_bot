@@ -181,6 +181,17 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 			continue
 		}
 
+		minSingleTransAmountStr, ok := adv["minSingleTransAmount"].(string)
+		if !ok {
+			log.Println("minSingleTransAmount not found or is not a string in adv")
+			continue
+		}
+		minSingleTransAmount, err := strconv.ParseFloat(minSingleTransAmountStr, 64)
+		if err != nil {
+			log.Printf("Failed to parse minSingleTransAmount: %v", err)
+			continue
+		}
+
 		extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
 		if !ok {
 			log.Printf("extra_filter not found or is not a map in config")
@@ -193,11 +204,21 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 			return
 		}
 
+		minimumLimit := getConfigFloatValue(extraFilter, "minimum_limit", 0)
+		if !ok {
+			log.Printf("extra_filter not found or is not a map in config")
+			return
+		}
+
 		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
 
 		// fmt.Printf("Price: %.2f, Target Price: %.2f\n", price, targetPrice)
 
 		if price > targetPrice {
+			continue
+		}
+
+		if minSingleTransAmount < minimumLimit {
 			continue
 		}
 

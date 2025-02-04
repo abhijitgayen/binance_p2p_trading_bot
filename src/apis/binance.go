@@ -78,21 +78,21 @@ func (b *BinanceAPI) SearchAds(asset, fiat string, page, rows int, tradeType str
 	return b.sendRequest("/sapi/v1/c2c/ads/search", query, body)
 }
 
-// Place Order
+// PlaceOrder places an order based on ad details.
 func (b *BinanceAPI) PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeType string, matchPrice, totalAmount float64) (map[string]interface{}, error) {
-	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
-	query := fmt.Sprintf("advOrderNumber=%s&asset=%s&buyType=%s&fiatUnit=%s&timestamp=%s",
+	timestamp := time.Now().UnixMilli()
+	query := fmt.Sprintf("advOrderNumber=%s&asset=%s&buyType=%s&fiatUnit=%s&timestamp=%d",
 		advOrderNumber, asset, buyType, fiatUnit, timestamp)
 
 	body := map[string]interface{}{
 		"advOrderNumber": advOrderNumber,
 		"asset":          asset,
-		"buyType":        buyType,
+		"buyType":        "BY_MONEY", // Matching Python: Hardcoded buyType
 		"fiatUnit":       fiatUnit,
 		"matchPrice":     matchPrice,
-		"origin":         "MAKE_TAKE",
 		"totalAmount":    totalAmount,
 		"tradeType":      tradeType,
+		"origin":         "MAKE_TAKE",
 	}
 
 	return b.sendRequest("/sapi/v1/c2c/orderMatch/placeOrder", query, body)
