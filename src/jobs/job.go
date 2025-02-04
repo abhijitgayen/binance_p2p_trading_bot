@@ -328,23 +328,26 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 	}
 
 	totalAmount := getOrderAmount(matchPrice, maxSingleTransAmount, minSingleTransAmount, surplusAmount)
-	orderMessage := fmt.Sprintf(
-		"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
-		advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
-	)
-
-	fmt.Printf("TotalAmountToInvest: %.2f, TotalAmount: %.2f\n", j.TotalAmountToInvest, totalAmount)
 
 	if (j.TotalAmountToInvest - totalAmount) < 0 {
 		if j.TotalAmountToInvest > minSingleTransAmount {
 			totalAmount = j.TotalAmountToInvest
 		} else {
+			orderMessage := fmt.Sprintf(
+				"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
+				advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
+			)
 			message := fmt.Sprintf(" 🛑 Inappropriate Amount 🛑 \n\n %s \n Use command  /stop to the job", orderMessage)
 			j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 			j.adsTracker[taskName].HasError = true
 			return fmt.Errorf("inappropriate amount")
 		}
 	}
+
+	orderMessage := fmt.Sprintf(
+		"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
+		advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
+	)
 
 	// Simulate an error for demonstration purposes
 	orderResponse, err := j.BinanceAPI.PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeType, matchPrice, totalAmount)

@@ -109,7 +109,6 @@ docker run -d --env-file .env -v $(pwd)/database:/database --name telegram_bot_m
 ## TODO:
 1. Need to fix docker support to delpoy app
 2. Some Bugs fixes
-   - set config some problem. Not working properly.
    - admin flow test and fix some part.
    - put the tracker properly.
    - minimum ammount filter not working
