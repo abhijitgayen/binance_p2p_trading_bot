@@ -63,12 +63,12 @@ func adminRunJobHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	api := apis.NewBinanceAPI(config.BinanceURL, apiKey, secretKey, user.BotConfig)
 	queue := priority_queue.NewPriorityQueue(2, time.Duration(config.CreateOrderInterval)*time.Second)
 
-	jobManager.StartJob(userID, api, queue, bot, update.Message.Chat.ID)
+	jobManager.StartJob(userID, api, queue, bot, userID)
 	if jobManager.IsJobRunning(userID) {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🤖 The bot is running in the background for the specified user!")
+		msg := tgbotapi.NewMessage(userID, "🤖 The bot is running in the background for the specified user!")
 		bot.Send(msg)
 	} else {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ Failed to start the job for the specified user.")
+		msg := tgbotapi.NewMessage(userID, "⚠️ Failed to start the job for the specified user.")
 		bot.Send(msg)
 	}
 }
@@ -92,7 +92,7 @@ func adminStopJobHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	jobManager := jobs.GetJobManager()
 	jobManager.StopJob(userID)
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 The bot has been stopped for the specified user.")
+	msg := tgbotapi.NewMessage(userID, "🚫 The bot has been stopped for the specified user.")
 	bot.Send(msg)
 }
 
@@ -137,14 +137,14 @@ func adminHelpHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 	// Define the help message
 	helpMessage := "*🔧 Admin Commands:*\n\n" +
-		"📌 `/admin_start_job <user_id>`  Start a job for the specified user.\n" +
+		"📌 `/admin_run_job <user_id>`  Start a job for the specified user.\n" +
 		"📌 `/admin_stop_job <user_id>` Stop the job for the specified user.\n" +
 		"📌 `/admin_job_status`  Get the status of all users' jobs.\n" +
 		"📌 `/admin_help` Show this help message. \n"
 
 	// Create a new Telegram message
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, helpMessage)
-	msg.ParseMode = "Markdown" 
+	msg.ParseMode = "Markdown"
 
 	// Send the message and handle errors
 	if _, err := bot.Send(msg); err != nil {
