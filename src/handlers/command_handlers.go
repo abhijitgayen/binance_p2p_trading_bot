@@ -126,6 +126,8 @@ func setConfigHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.Use
 	key := args[1]
 	value := args[2]
 
+	fmt.Println("key:", key, "value:", value)
+
 	// Validate the key and type
 	if !validateKeyAndType(key, value) {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("⚠️ *Invalid configuration key or type: %s*", key))
@@ -199,13 +201,9 @@ func validateKeyAndType(key, value string) bool {
 	var ok bool
 
 	if len(keys) == 2 {
-		field, ok = reflect.TypeOf(config.DefaultBotConfig.ExtraFilter).FieldByNameFunc(func(name string) bool {
-			return strings.EqualFold(name, keys[1])
-		})
+		field, ok = getFieldByTag(reflect.TypeOf(config.DefaultBotConfig.ExtraFilter), keys[1])
 	} else {
-		field, ok = reflect.TypeOf(config.DefaultBotConfig).FieldByNameFunc(func(name string) bool {
-			return strings.EqualFold(name, keys[0])
-		})
+		field, ok = getFieldByTag(reflect.TypeOf(config.DefaultBotConfig), keys[0])
 	}
 
 	if !ok {
@@ -225,6 +223,17 @@ func validateKeyAndType(key, value string) bool {
 	default:
 		return false
 	}
+}
+
+func getFieldByTag(t reflect.Type, tag string) (reflect.StructField, bool) {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if field.Tag.Get("json") == tag {
+			return field, true
+		}
+	}
+	
+	return reflect.StructField{}, false
 }
 
 // convertValue attempts to convert a string value to an int, float64, or bool
