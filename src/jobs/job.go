@@ -295,11 +295,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		return fmt.Errorf("fiatUnit not found or is not a string in adv")
 	}
 
-	tradeType, ok := adv["tradeType"].(string)
-	if !ok {
-		return fmt.Errorf("tradeType not found or is not a string in adv")
-	}
-
+	tradeType := "BUY"
 	buyType := "BY_MONEY"
 
 	matchPriceStr, ok := adv["price"].(string)
