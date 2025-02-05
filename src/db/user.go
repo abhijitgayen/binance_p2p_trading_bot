@@ -75,7 +75,7 @@ func GetUser(db *sql.DB, userID int64) *User {
 // GetAllUsers returns a list of all users from the database
 
 func GetAllUsers(database *sql.DB) ([]User, error) {
-	rows, err := database.Query("SELECT user_id, bot_config FROM users")
+	rows, err := database.Query("SELECT user_id, first_name, last_name, bot_config FROM users")
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func GetAllUsers(database *sql.DB) ([]User, error) {
 	for rows.Next() {
 		var user User
 		var botConfig string
-		if err := rows.Scan(&user.UserID, &botConfig); err != nil {
+		if err := rows.Scan(&user.UserID, &user.FirstName, &user.LastName, &botConfig); err != nil {
 			return nil, err
 		}
 
@@ -94,5 +94,10 @@ func GetAllUsers(database *sql.DB) ([]User, error) {
 		}
 		users = append(users, user)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return users, nil
 }
