@@ -49,9 +49,6 @@ func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interfa
 		return nil, fmt.Errorf("failed to marshal body: %v", err)
 	}
 
-	fmt.Printf("Request Body: %s\n", string(jsonBody)) // Log the body
-	fmt.Printf("Request URL: %s\n", url)               // Log the URL
-
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, err
