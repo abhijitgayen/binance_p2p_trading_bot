@@ -18,6 +18,7 @@ type BinanceAPI struct {
 	APIKey    string
 	SecretKey string
 	Config    map[string]interface{}
+	Client    *http.Client
 }
 
 func NewBinanceAPI(baseURL, apiKey, secretKey string, config map[string]interface{}) *BinanceAPI {
@@ -26,6 +27,7 @@ func NewBinanceAPI(baseURL, apiKey, secretKey string, config map[string]interfac
 		APIKey:    apiKey,
 		SecretKey: secretKey,
 		Config:    config,
+		Client:    &http.Client{}, // Reusable HTTP client
 	}
 }
 
@@ -41,7 +43,15 @@ func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interfa
 	signature := b.generateSignature(query)
 	url := fmt.Sprintf("%s%s?%s&signature=%s", b.BaseURL, endpoint, query, signature)
 
-	jsonBody, _ := json.Marshal(body)
+	// Marshal the body to JSON
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal body: %v", err)
+	}
+
+	fmt.Printf("Request Body: %s\n", string(jsonBody)) // Log the body
+	fmt.Printf("Request URL: %s\n", url)               // Log the URL
+
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, err
@@ -55,9 +65,18 @@ func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interfa
 		return nil, err
 	}
 	defer resp.Body.Close()
-	bodyBytes, _ := io.ReadAll(resp.Body)
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check for response errors
 	var response map[string]interface{}
-	json.Unmarshal(bodyBytes, &response)
+	err = json.Unmarshal(bodyBytes, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
+	}
 	return response, nil
 }
 
@@ -85,14 +104,14 @@ func (b *BinanceAPI) PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeT
 		advOrderNumber, asset, buyType, fiatUnit, timestamp)
 
 	body := map[string]interface{}{
-		"advOrderNumber": advOrderNumber,
-		"asset":          asset,
-		"buyType":        "BY_MONEY", // Matching Python: Hardcoded buyType
-		"fiatUnit":       fiatUnit,
-		"matchPrice":     matchPrice,
-		"totalAmount":    totalAmount,
-		"tradeType":      tradeType,
-		"origin":         "MAKE_TAKE",
+		"advOrderNumber": advOrderNumber, // string
+		"asset":          asset,          //string
+		"buyType":        buyType,        //string
+		"fiatUnit":       fiatUnit,       //string
+		"matchPrice":     matchPrice,     //float64
+		"totalAmount":    totalAmount,    //float64
+		"tradeType":      tradeType,      //string
+		"origin":         "MAKE_TAKE",    //string
 	}
 
 	return b.sendRequest("/sapi/v1/c2c/orderMatch/placeOrder", query, body)
