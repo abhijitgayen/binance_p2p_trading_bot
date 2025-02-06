@@ -181,12 +181,12 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 			continue
 		}
 
-		minSingleTransAmountStr, ok := adv["minSingleTransAmount"].(string)
+		maxSingleTransAmountStr, ok := adv["maxSingleTransAmount"].(string)
 		if !ok {
 			log.Println("minSingleTransAmount not found or is not a string in adv")
 			continue
 		}
-		minSingleTransAmount, err := strconv.ParseFloat(minSingleTransAmountStr, 64)
+		maxSingleTransAmount, err := strconv.ParseFloat(maxSingleTransAmountStr, 64)
 		if err != nil {
 			log.Printf("Failed to parse minSingleTransAmount: %v", err)
 			continue
@@ -218,7 +218,7 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 			continue
 		}
 
-		if minSingleTransAmount >= minimumLimit {
+		if maxSingleTransAmount <= minimumLimit {
 			continue
 		}
 
