@@ -83,10 +83,10 @@ func (pq *PriorityQueue) ProcessTasks() {
 // Clear clears the priority queue and stops processing tasks
 func (pq *PriorityQueue) Clear() {
 	pq.mu.Lock()
-	defer pq.mu.Unlock()
+	pq.tree.Clear(true)
+	pq.mu.Unlock()
 
 	fmt.Println("Clearing the priority queue")
-	pq.tree.Clear(true)
 }
 
 func (pq *PriorityQueue) ContainsTask(taskName string) bool {

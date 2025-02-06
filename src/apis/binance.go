@@ -7,9 +7,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"strconv"
+	"sync"
 	"time"
 )
 
@@ -19,6 +18,7 @@ type BinanceAPI struct {
 	SecretKey string
 	Config    map[string]interface{}
 	Client    *http.Client
+	mutex     sync.Mutex
 }
 
 func NewBinanceAPI(baseURL, apiKey, secretKey string, config map[string]interface{}) *BinanceAPI {
@@ -27,7 +27,7 @@ func NewBinanceAPI(baseURL, apiKey, secretKey string, config map[string]interfac
 		APIKey:    apiKey,
 		SecretKey: secretKey,
 		Config:    config,
-		Client:    &http.Client{}, // Reusable HTTP client
+		Client:    &http.Client{},
 	}
 }
 
@@ -40,10 +40,8 @@ func (b *BinanceAPI) generateSignature(query string) string {
 
 // Send API Request
 func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interface{}) (map[string]interface{}, error) {
-	signature := b.generateSignature(query)
-	url := fmt.Sprintf("%s%s?%s&signature=%s", b.BaseURL, endpoint, query, signature)
+	url := fmt.Sprintf("%s%s?%s&signature=%s", b.BaseURL, endpoint, query, b.generateSignature(query))
 
-	// Marshal the body to JSON
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal body: %v", err)
@@ -56,32 +54,26 @@ func (b *BinanceAPI) sendRequest(endpoint, query string, body map[string]interfa
 	req.Header.Set("X-MBX-APIKEY", b.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	b.mutex.Lock()
+	resp, err := b.Client.Do(req)
+	b.mutex.Unlock()
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check for response errors
 	var response map[string]interface{}
-	err = json.Unmarshal(bodyBytes, &response)
-	if err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response body: %v", err)
 	}
+
 	return response, nil
 }
 
 // Fetch Ads
 func (b *BinanceAPI) SearchAds(asset, fiat string, page, rows int, tradeType string) (map[string]interface{}, error) {
-	timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
-	query := fmt.Sprintf("asset=%s&fiat=%s&page=%d&rows=%d&tradeType=%s&timestamp=%s",
-		asset, fiat, page, rows, tradeType, timestamp)
+	query := fmt.Sprintf("asset=%s&fiat=%s&page=%d&rows=%d&tradeType=%s&timestamp=%d",
+		asset, fiat, page, rows, tradeType, time.Now().UnixMilli())
 
 	body := map[string]interface{}{
 		"asset":     asset,
@@ -94,21 +86,20 @@ func (b *BinanceAPI) SearchAds(asset, fiat string, page, rows int, tradeType str
 	return b.sendRequest("/sapi/v1/c2c/ads/search", query, body)
 }
 
-// PlaceOrder places an order based on ad details.
+// Place Order
 func (b *BinanceAPI) PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeType string, matchPrice, totalAmount float64) (map[string]interface{}, error) {
-	timestamp := time.Now().UnixMilli()
 	query := fmt.Sprintf("advOrderNumber=%s&asset=%s&buyType=%s&fiatUnit=%s&timestamp=%d",
-		advOrderNumber, asset, buyType, fiatUnit, timestamp)
+		advOrderNumber, asset, buyType, fiatUnit, time.Now().UnixMilli())
 
 	body := map[string]interface{}{
-		"advOrderNumber": advOrderNumber, // string
-		"asset":          asset,          //string
-		"buyType":        buyType,        //string
-		"fiatUnit":       fiatUnit,       //string
-		"matchPrice":     matchPrice,     //float64
-		"totalAmount":    totalAmount,    //float64
-		"tradeType":      tradeType,      //string
-		"origin":         "MAKE_TAKE",    //string
+		"advOrderNumber": advOrderNumber,
+		"asset":          asset,
+		"buyType":        buyType,
+		"fiatUnit":       fiatUnit,
+		"matchPrice":     matchPrice,
+		"totalAmount":    totalAmount,
+		"tradeType":      tradeType,
+		"origin":         "MAKE_TAKE",
 	}
 
 	return b.sendRequest("/sapi/v1/c2c/orderMatch/placeOrder", query, body)
