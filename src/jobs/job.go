@@ -212,13 +212,13 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 
 		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
 
-		// fmt.Printf("Price: %.2f, Target Price: %.2f\n", price, targetPrice)
+		// fmt.Printf("Price: %.2f, Target Price: %.2f\n minSingleTransAmount: %.2f \n minimumLimit %.2f ", price, targetPrice, minSingleTransAmount, minimumLimit)
 
 		if price > targetPrice {
 			continue
 		}
 
-		if minSingleTransAmount < minimumLimit {
+		if minSingleTransAmount >= minimumLimit {
 			continue
 		}
 
