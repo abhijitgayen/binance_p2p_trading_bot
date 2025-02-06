@@ -58,7 +58,7 @@ func (j *Job) Run() {
 				return
 			default:
 				j.Queue.ProcessTasks()
-				time.Sleep(200 * time.Millisecond)
+				time.Sleep(time.Duration(config.ProcessQueueInterval) * time.Millisecond)
 			}
 		}
 	}()
@@ -76,7 +76,7 @@ func (j *Job) Run() {
 			j.ListAdsAndCreateOrders(asset, fiat, page, rows, tradeType)
 			j.lastRunTime = time.Now()
 			j.totalRuns++
-			time.Sleep(time.Duration(config.CallJobInterval) * time.Second)
+			time.Sleep(time.Duration(config.CallJobInterval) * time.Microsecond)
 		}
 	}
 }
