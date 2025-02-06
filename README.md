@@ -108,7 +108,8 @@ docker run -d --env-file .env -v $(pwd)/database:/database --name telegram_bot_m
 
 ## TODO:
 1. Need to fix docker support to delpoy app
-2. Some Bugs fixes
-   - `system error` why coming in api call -> expected it will be solved
+2. bugs
+  - `This Ad has an insufficient balance. Please choose another Ad.` 
+         -> need to find some optimiz solution for this.
+         -> this ads capture by another bot.
 3. Find out the way to make a parallel request
-   
