@@ -82,7 +82,7 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	case "set_config":
 		setConfigHandler(bot, update, user)
 	case "reset":
-		resetHandler(bot, update)
+		resetHandler(bot, update, database)
 	case "help":
 		helpHandler(bot, update)
 	case "about":

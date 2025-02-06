@@ -1,12 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
-	"log"
-	"reflect"
-	"strconv"
-	"strings"
-	"time"
 
 	"go_binance_bot/src/apis"
 	"go_binance_bot/src/config"
@@ -14,6 +11,11 @@ import (
 	"go_binance_bot/src/helpers/msg_gen"
 	"go_binance_bot/src/helpers/priority_queue"
 	"go_binance_bot/src/jobs"
+	"log"
+	"reflect"
+	"strconv"
+	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -232,7 +234,7 @@ func getFieldByTag(t reflect.Type, tag string) (reflect.StructField, bool) {
 			return field, true
 		}
 	}
-	
+
 	return reflect.StructField{}, false
 }
 
@@ -257,8 +259,31 @@ func convertValue(value string) interface{} {
 	return value
 }
 
-func resetHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+func resetHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, database *sql.DB) {
 	log.Println("Handling /reset command")
+
+	userID := update.Message.From.ID
+
+	var botConfigMap map[string]interface{}
+	configJSON, err := json.Marshal(config.DefaultBotConfig)
+	if err != nil {
+		log.Fatalf("Failed to marshal default bot config: %v", err)
+	}
+	err = json.Unmarshal(configJSON, &botConfigMap)
+	if err != nil {
+		log.Fatalf("Failed to unmarshal default bot config: %v", err)
+	}
+
+	// Insert new user data
+	user := &db.User{
+		UserID:    userID,
+		FirstName: update.Message.From.FirstName,
+		LastName:  update.Message.From.LastName,
+		BotConfig: botConfigMap,
+	}
+
+	db.UpdateUser(database, *user)
+
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🔄 The bot configuration has been reset.")
 	bot.Send(msg)
 }
