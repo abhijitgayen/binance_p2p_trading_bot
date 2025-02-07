@@ -1,22 +1,21 @@
-name: Build and Release Go App
+name: Build and Release Go App for Linux
 
 on:
   push:
     tags:
-      - "v*.*.*"  # Triggers only when a tag like v1.0.0 is pushed
+      - "v*.*.*"  # Trigger when pushing a version tag like v1.0.0
 
 permissions:
   contents: write  # Required to create a GitHub release
 
 jobs:
   build:
-    name: Build Go Binaries
+    name: Build Go Binaries for Linux
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        goos: [linux, windows, darwin]
-        goarch: [amd64, arm64]
+        goarch: [amd64, arm64]  # Only Linux architectures
 
     steps:
       - name: Checkout repository
@@ -28,18 +27,17 @@ jobs:
           go-version: 1.21  # Change this if needed
 
       - name: Install dependencies (if using CGO)
-        if: matrix.goos == 'linux'
         run: sudo apt-get update && sudo apt-get install -y gcc musl-dev sqlite3 libsqlite3-dev
 
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o go_binance_bot-${{ matrix.goos }}-${{ matrix.goarch }}
+          CGO_ENABLED=1 GOOS=linux GOARCH=${{ matrix.goarch }} go build -o go_binance_bot-linux-${{ matrix.goarch }}
 
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: go_binance_bot-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: go_binance_bot-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: go_binance_bot-linux-${{ matrix.goarch }}
+          path: go_binance_bot-linux-${{ matrix.goarch }}
 
   release:
     name: Create GitHub Release
@@ -62,12 +60,11 @@ jobs:
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body: |
-            🚀 New Release: **${{ github.ref_name }}**
+            🚀 New Linux Release: **${{ github.ref_name }}**
             
-            This release includes the latest compiled binaries for multiple platforms:
-            - Linux (amd64, arm64)
-            - macOS (amd64, arm64)
-            - Windows (amd64, arm64)
+            This release includes the latest compiled binaries for Linux:
+            - Linux (amd64)
+            - Linux (arm64)
 
           draft: false
           prerelease: false
