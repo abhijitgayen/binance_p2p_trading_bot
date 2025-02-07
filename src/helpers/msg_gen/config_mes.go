@@ -2,6 +2,7 @@ package msg_gen
 
 import (
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 )
@@ -52,57 +53,51 @@ func maskKey(key string) string {
 }
 
 func safeGetString(data map[string]interface{}, key string) string {
-	if value, exists := data[key]; exists {
-		if strValue, ok := value.(string); ok {
-			return strValue
-		}
+	if value, ok := data[key].(string); ok {
+		return value
 	}
-	return "N/A" // Return "N/A" if the key is not found or the value is not a string
+	return "N/A"
 }
 
 func safeGetFloat64(data map[string]interface{}, key string) float64 {
-	if value, exists := data[key]; exists {
-		if num, ok := value.(float64); ok {
-			return num
-		}
+	if value, ok := data[key].(float64); ok {
+		return value
 	}
-	return 0.0 // Return 0.0 if the key is not found or the value is not a float64
+	return 0.0
 }
 
 func GenerateOrderMessage(responsePlaceOrder map[string]interface{}) string {
-	// Check if the success flag is true
-	if success, ok := responsePlaceOrder["success"].(bool); ok && success {
-		// Get the orderMatch data
-		orderMatch, ok := responsePlaceOrder["data"].(map[string]interface{})["orderMatch"].(map[string]interface{})
-		if !ok {
-			return "Error: Missing orderMatch data"
-		}
 
-		var builder strings.Builder
+	log.Printf("responsePlaceOrder: %v", responsePlaceOrder)
 
-		builder.WriteString("*📝 Order Information:*\n\n")
-		builder.WriteString(fmt.Sprintf("📋 *Order Number:* `%v`\n", safeGetString(orderMatch, "orderNumber")))
-		builder.WriteString(fmt.Sprintf("📋 *Adv Order Number:* `%v`\n\n", safeGetString(orderMatch, "advOrderNumber")))
-
-		builder.WriteString(fmt.Sprintf("⏳ *Allow Complain Time:* `%v`\n", safeGetString(orderMatch, "allowComplainTime")))
-		builder.WriteString(fmt.Sprintf("🧑‍💻 *User Id:* `%v`\n", safeGetString(orderMatch, "userId")))
-		builder.WriteString(fmt.Sprintf("👤 *Adv User Id:* `%v`\n\n", safeGetString(orderMatch, "advUserId")))
-
-		builder.WriteString("🛍️ *Buyer Information:*\n")
-		builder.WriteString(fmt.Sprintf("- *Nickname:* `%v`\n", safeGetString(orderMatch, "buyerNickname")))
-		builder.WriteString(fmt.Sprintf("- *Name:* `%v`\n\n", safeGetString(orderMatch, "buyerName")))
-
-		builder.WriteString("💰 *Transaction Details:*\n")
-		builder.WriteString(fmt.Sprintf("- *Amount:* `%v %v`\n", safeGetFloat64(orderMatch, "amount"), safeGetString(orderMatch, "asset")))
-		builder.WriteString(fmt.Sprintf("- *Price:* `%v %v/%v`\n", safeGetFloat64(orderMatch, "price"), safeGetString(orderMatch, "fiatUnit"), safeGetString(orderMatch, "asset")))
-		builder.WriteString(fmt.Sprintf("- *Total Price:* `%v %v`\n\n", safeGetFloat64(orderMatch, "totalPrice"), safeGetString(orderMatch, "fiatUnit")))
-
-		builder.WriteString("💼 *Trade Information:*\n")
-		builder.WriteString(fmt.Sprintf("- *Trade Type:* `%v`\n", safeGetString(orderMatch, "tradeType")))
-		builder.WriteString(fmt.Sprintf("- *Pay Type:* `%v`\n", safeGetString(orderMatch, "payType")))
-
-		return builder.String()
+	if success, ok := responsePlaceOrder["success"].(bool); !ok || !success {
+		return "Error: Order response is not successful or missing required data."
 	}
 
-	return "Error: Order response is not successful or missing required data."
+	orderMatch, _ := responsePlaceOrder["data"].(map[string]interface{})["orderMatch"].(map[string]interface{})
+
+	var builder strings.Builder
+
+	builder.WriteString("*📝 Order Information:*\n\n")
+	builder.WriteString(fmt.Sprintf("📋 *Order Number:* `%v`\n", safeGetString(orderMatch, "orderNumber")))
+	builder.WriteString(fmt.Sprintf("📋 *Adv Order Number:* `%v`\n\n", safeGetString(orderMatch, "advOrderNumber")))
+
+	builder.WriteString(fmt.Sprintf("⏳ *Allow Complain Time:* `%v`\n", safeGetString(orderMatch, "allowComplainTime")))
+	builder.WriteString(fmt.Sprintf("🧑‍💻 *User Id:* `%v`\n", safeGetString(orderMatch, "userId")))
+	builder.WriteString(fmt.Sprintf("👤 *Adv User Id:* `%v`\n\n", safeGetString(orderMatch, "advUserId")))
+
+	builder.WriteString("🛍️ *Buyer Information:*\n")
+	builder.WriteString(fmt.Sprintf("- *Nickname:* `%v`\n", safeGetString(orderMatch, "buyerNickname")))
+	builder.WriteString(fmt.Sprintf("- *Name:* `%v`\n\n", safeGetString(orderMatch, "buyerName")))
+
+	builder.WriteString("💰 *Transaction Details:*\n")
+	builder.WriteString(fmt.Sprintf("- *Amount:* `%v %v`\n", safeGetFloat64(orderMatch, "amount"), safeGetString(orderMatch, "asset")))
+	builder.WriteString(fmt.Sprintf("- *Price:* `%v %v/%v`\n", safeGetFloat64(orderMatch, "price"), safeGetString(orderMatch, "fiatUnit"), safeGetString(orderMatch, "asset")))
+	builder.WriteString(fmt.Sprintf("- *Total Price:* `%v %v`\n\n", safeGetFloat64(orderMatch, "totalPrice"), safeGetString(orderMatch, "fiatUnit")))
+
+	builder.WriteString("💼 *Trade Information:*\n")
+	builder.WriteString(fmt.Sprintf("- *Trade Type:* `%v`\n", safeGetString(orderMatch, "tradeType")))
+	builder.WriteString(fmt.Sprintf("- *Pay Type:* `%v`\n", safeGetString(orderMatch, "payType")))
+
+	return builder.String()
 }
