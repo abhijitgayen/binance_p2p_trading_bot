@@ -32,7 +32,7 @@ go_binance_bot
 │ │ └── manager.go # Job manager for handling multiple jobs 
 │ ├── utils 
 │ │ └── utils.go # Utility functions 
-│ └── main.go # Entry point of the application 
+│── main.go # Entry point of the application 
 ├── .env # Environment variables 
 ├── .gitignore # Git ignore file 
 ├── Dockerfile # Dockerfile for containerizing the application 
@@ -63,12 +63,14 @@ go_binance_bot
 Need to create a `.env` file in root to the dir
 
 ```env
-TELEGRAM_BOT_TOKEN=8163178289:AAHENuiewaGeXp1mNES0utUGpJb023dk1JgjJQ
-AUTHORIZED_USERS=2085862918,6426250048
+TELEGRAM_BOT_TOKEN=7621952856:AAH_KESBZzc1X0I00u4nRpimNw3EixfzyGU
+AUTHORIZED_USERS=2085862928,6426250648
+NOTIFY_USER_ID=2085862928
 DATABASE_PATH=database/db.sqlite3
 BINANCE_URL=https://api.binance.com
-PROCESS_QUEUE_INTERVAL=1
-CALL_JOB_INTERVAL=1
+PROCESS_QUEUE_INTERVAL=100
+CALL_JOB_INTERVAL=100
+CREATE_ORDER_INTERVAL=9
 ```
 
 ## Usage
@@ -91,20 +93,41 @@ go build -o bin/go_binance_bot src/main.go
 
 Builds the Docker image and tags it as go_binance_bot.
 
-```bash
-docker build -t go_binance_bot .
-```
-### Run Docker Container
+- On Linux/Mac:
+
+   ```bash
+   go build -o go_binance_bot .
+   ```
+
+- On Windows:
+   ```bash
+   go build -o go_binance_bot.exe .
+   ```
+### Run Bot
 
 ```bash
-docker run --env-file .env go_binance_bot
+ENV_FILE=.env ./go_binance_bot
 ```
 
-### Mount the db also
+## Docker Build
+
+### Docker image build
+
 
 ```bash
-docker run -d --env-file .env -v $(pwd)/database:/database --name telegram_bot_my go_binance_bot
+GOOS=linux GOARCH=amd64 go build -o go_binance_bot .
 ```
+
+```bash
+docker build -t my-go-bot .
+```
+
+### Run docker container
+
+```bash
+docker run --rm --env-file .env my-go-bot
+```
+
 
 ## TODO:
 1. Need to fix docker support to delpoy app

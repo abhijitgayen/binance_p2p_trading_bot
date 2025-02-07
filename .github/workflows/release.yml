@@ -1,0 +1,73 @@
+name: Build and Release Go App
+
+on:
+  push:
+    tags:
+      - "v*.*.*"  # Triggers only when a tag like v1.0.0 is pushed
+
+permissions:
+  contents: write  # Required to create a GitHub release
+
+jobs:
+  build:
+    name: Build Go Binaries
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.21  # Change this if needed
+
+      - name: Install dependencies (if using CGO)
+        if: matrix.goos == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc musl-dev sqlite3 libsqlite3-dev
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=1 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o go_binance_bot-${{ matrix.goos }}-${{ matrix.goarch }}
+
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go_binance_bot-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: go_binance_bot-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all built binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: binaries
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: binaries/go_binance_bot-*
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body: |
+            🚀 New Release: **${{ github.ref_name }}**
+            
+            This release includes the latest compiled binaries for multiple platforms:
+            - Linux (amd64, arm64)
+            - macOS (amd64, arm64)
+            - Windows (amd64, arm64)
+
+          draft: false
+          prerelease: false

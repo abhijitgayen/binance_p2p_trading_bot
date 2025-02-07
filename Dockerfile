@@ -1,35 +1,20 @@
-# Use the official Golang image as the base image
-FROM golang:1.18-alpine AS builder
-
-# Install build tools
-RUN apk add --no-cache gcc musl-dev
-
-# Set the Current Working Directory inside the container
-WORKDIR /app
-
-# Copy go.mod and go.sum files
-COPY go.mod go.sum ./
-
-# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
-RUN go mod download
-
-# Copy the source from the current directory to the Working Directory inside the container
-COPY . .
-
-# Build the Go app
-RUN go build -o /go_binance_bot src/main.go
-
-# Start a new stage from scratch
+# Use a minimal base image
 FROM alpine:latest
 
-# Install necessary runtime dependencies
-RUN apk add --no-cache ca-certificates
+# Install required system dependencies
+RUN apk add --no-cache ca-certificates sqlite-libs
 
-# Copy the Pre-built binary file from the previous stage
-COPY --from=builder /go_binance_bot /go_binance_bot
+# Copy the pre-built Go binary into the container
+COPY go_binance_bot /go_binance_bot
 
-# Expose port 8080 to the outside world
-EXPOSE 8080
+# Copy the .env file if needed (optional)
+COPY .env /app/.env
 
-# Command to run the executable
+# Set execution permissions
+RUN chmod +x /go_binance_bot
+
+# Set the working directory
+WORKDIR /app
+
+# Run the binary
 CMD ["/go_binance_bot"]
