@@ -249,5 +249,7 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 				}
 			}(taskName, adv),
 		})
+
+		j.Queue.ProcessTasks()
 	}
 }
