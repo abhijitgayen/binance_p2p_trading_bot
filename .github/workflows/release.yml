@@ -77,7 +77,13 @@ jobs:
         with:
           path: binaries
 
-      - name: List downloaded binaries
+      - name: Move binaries to correct location
+        run: |
+          mv binaries/go_binance_bot-linux-amd64/go_binance_bot-linux-amd64 binaries/
+          mv binaries/go_binance_bot-linux-arm64/go_binance_bot-linux-arm64 binaries/
+          rm -rf binaries/go_binance_bot-linux-amd64 binaries/go_binance_bot-linux-arm64
+
+      - name: List binaries
         run: ls -lah binaries/
 
       - name: Create GitHub Release
