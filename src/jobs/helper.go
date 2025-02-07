@@ -92,6 +92,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		if j.TotalAmountToInvest > minSingleTransAmount {
 			totalAmount = j.TotalAmountToInvest
 		} else {
+			log.Printf("Inappropriate Amount:  TotalAmountToInvest -> %v totalAmount -> %v", j.TotalAmountToInvest, totalAmount)
 			orderMessage := fmt.Sprintf(
 				"📄 Order Number: %s\n💰 Match Price: %.2f\n📦 Surplus Amount: %.2f\n🔢 Transaction Limits: %.2f - %.2f\n💴 Total Amount: %.2f\n",
 				advOrderNumber, matchPrice, surplusAmount, minSingleTransAmount, maxSingleTransAmount, totalAmount,
@@ -111,7 +112,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 	// Simulate an error for demonstration purposes
 	orderResponse, err := j.BinanceAPI.PlaceOrder(advOrderNumber, asset, buyType, fiatUnit, tradeType, matchPrice, totalAmount)
 	if err != nil {
-		// log.Printf("Failed to create order for %s: %v", advOrderNumber, err)
+		log.Printf("Failed to create order for %s: %v", advOrderNumber, err)
 		j.adsTracker[taskName].HasError = true
 		return err
 	}
