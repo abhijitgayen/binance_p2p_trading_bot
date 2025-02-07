@@ -29,13 +29,14 @@ func NewBinanceAPI(baseURL, apiKey, secretKey string, config map[string]interfac
 		Config:    config,
 		Client: &http.Client{
 			Transport: &http.Transport{
-				MaxIdleConns:       100, // Increase concurrent connections
-				MaxConnsPerHost:    100, // Prevents bottlenecks
-				IdleConnTimeout:    60 * time.Second,
-				DisableCompression: true,
-				ForceAttemptHTTP2:  true, // Uses HTTP/2 for multiplexing
+				MaxIdleConns:        100,
+				MaxConnsPerHost:     100,
+				IdleConnTimeout:     90 * time.Second,
+				DisableCompression:  false, // Enable compression
+				ForceAttemptHTTP2:   true,
+				MaxIdleConnsPerHost: 50,
 			},
-			Timeout: 10 * time.Second, // Set aggressive timeout
+			Timeout: 15 * time.Second,
 		},
 	}
 }
