@@ -49,34 +49,52 @@ func (j *Job) Run() {
 	j.TotalAmountToInvest = getConfigFloatValue(j.BinanceAPI.Config, "total_amount_to_invest", 0)
 	j.NoOfOrders = getConfigIntValue(j.BinanceAPI.Config, "no_of_orders", 1)
 
-	j.wg.Add(1)
-	go func() {
-		defer j.wg.Done()
-		for {
-			select {
-			case <-j.stopChan:
-				return
-			default:
-				j.Queue.ProcessTasks()
-				time.Sleep(time.Duration(config.ProcessQueueInterval) * time.Millisecond)
-			}
-		}
-	}()
+	j.wg.Add(2) // Add two jobs to WaitGroup
+
+	go j.processQueueWorker()
+	go j.createOrdersWorker()
+
+	j.wg.Wait() // Wait for both workers to complete
+}
+
+// Worker to process the queue
+func (j *Job) processQueueWorker() {
+	defer j.wg.Done()
+
+	ticker := time.NewTicker(time.Duration(config.ProcessQueueInterval) * time.Millisecond)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-j.stopChan:
 			return
-		default:
+		case <-ticker.C:
+			j.Queue.ProcessTasks()
+		}
+	}
+}
+
+// Worker to create orders
+func (j *Job) createOrdersWorker() {
+	defer j.wg.Done()
+
+	ticker := time.NewTicker(time.Duration(config.CallJobInterval) * time.Microsecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-j.stopChan:
+			return
+		case <-ticker.C:
 			asset := getConfigValue(j.BinanceAPI.Config, "asset", "USDT")
 			fiat := getConfigValue(j.BinanceAPI.Config, "fiat", "INR")
 			page := getConfigIntValue(j.BinanceAPI.Config, "page", 1)
 			rows := getConfigIntValue(j.BinanceAPI.Config, "rows", 2)
 			tradeType := getConfigValue(j.BinanceAPI.Config, "trade_type", "BUY")
+
 			j.ListAdsAndCreateOrders(asset, fiat, page, rows, tradeType)
 			j.lastRunTime = time.Now()
 			j.totalRuns++
-			time.Sleep(time.Duration(config.CallJobInterval) * time.Microsecond)
 		}
 	}
 }
@@ -249,7 +267,5 @@ func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeTy
 				}
 			}(taskName, adv),
 		})
-
-		j.Queue.ProcessTasks()
 	}
 }
