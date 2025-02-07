@@ -49,6 +49,12 @@ jobs:
             export CXX=aarch64-linux-gnu-g++
           fi
           go build -v -o go_binance_bot-linux-${{ matrix.goarch }} .
+      
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: go_binance_bot-${{ matrix.goarch }}
+          path: go_binance_bot-linux-${{ matrix.goarch }}
 
   release:
     name: Create GitHub Release
@@ -61,7 +67,14 @@ jobs:
         with:
           path: binaries
 
+      - name: Make binaries executable
+        run: chmod +x binaries/go_binance_bot-*
+
+      - name: List downloaded files (Debugging)
+        run: ls -lah binaries/
+
       - name: Create GitHub Release (Binary Only)
+        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           files: binaries/go_binance_bot-*
@@ -78,3 +91,9 @@ jobs:
 
           draft: false
           prerelease: false
+
+      - name: Delete Source Code from Release
+        run: |
+          gh release delete-asset ${{ github.ref_name }} "$(gh release view ${{ github.ref_name }} --json assets -q '.assets[].name' | grep -E '\.zip|\.tar.gz')"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
