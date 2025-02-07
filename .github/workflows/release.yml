@@ -26,12 +26,27 @@ jobs:
         with:
           go-version: 1.21  # Change this if needed
 
-      - name: Install dependencies (if using CGO)
-        run: sudo apt-get update && sudo apt-get install -y gcc musl-dev sqlite3 libsqlite3-dev
+      - name: Install dependencies (for CGO support)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc musl-dev sqlite3 libsqlite3-dev
+
+      - name: Install ARM64 Cross-Compiler (if needed)
+        if: matrix.goarch == 'arm64'
+        run: |
+          sudo apt install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+            libc6-dev-arm64-cross binutils-aarch64-linux-gnu
 
       - name: Build binary
         run: |
-          CGO_ENABLED=1 GOOS=linux GOARCH=${{ matrix.goarch }} go build -o go_binance_bot-linux-${{ matrix.goarch }}
+          export CGO_ENABLED=1
+          export GOOS=linux
+          export GOARCH=${{ matrix.goarch }}
+          if [ "${{ matrix.goarch }}" = "arm64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+            export CXX=aarch64-linux-gnu-g++
+          fi
+          go build -v -o go_binance_bot-linux-${{ matrix.goarch }} .
 
       - name: Upload binary as artifact
         uses: actions/upload-artifact@v4
@@ -53,14 +68,17 @@ jobs:
         with:
           path: binaries
 
+      - name: List downloaded binaries
+        run: ls -lh binaries/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: binaries/go_binance_bot-*
+          files: binaries/go_binance_bot-linux-*
           tag_name: ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body: |
-            🚀 New Linux Release: **${{ github.ref_name }}**
+            🚀 **New Linux Release: ${{ github.ref_name }}**
             
             This release includes the latest compiled binaries for Linux:
             - Linux (amd64)
