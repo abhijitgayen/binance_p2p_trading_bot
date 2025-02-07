@@ -53,8 +53,8 @@ func maskKey(key string) string {
 }
 
 func safeGetString(data map[string]interface{}, key string) string {
-	if value, ok := data[key].(string); ok {
-		return value
+	if value, ok := data[key]; ok {
+		return fmt.Sprintf("%v", value)
 	}
 	return "N/A"
 }
@@ -82,22 +82,49 @@ func GenerateOrderMessage(responsePlaceOrder map[string]interface{}) string {
 	builder.WriteString(fmt.Sprintf("📋 *Order Number:* `%v`\n", safeGetString(orderMatch, "orderNumber")))
 	builder.WriteString(fmt.Sprintf("📋 *Adv Order Number:* `%v`\n\n", safeGetString(orderMatch, "advOrderNumber")))
 
-	builder.WriteString(fmt.Sprintf("⏳ *Allow Complain Time:* `%v`\n", safeGetString(orderMatch, "allowComplainTime")))
-	builder.WriteString(fmt.Sprintf("🧑‍💻 *User Id:* `%v`\n", safeGetString(orderMatch, "userId")))
-	builder.WriteString(fmt.Sprintf("👤 *Adv User Id:* `%v`\n\n", safeGetString(orderMatch, "advUserId")))
+	builder.WriteString(fmt.Sprintf("🧑‍💻 *User Id:* `%v`\n", safeGetFloat64(orderMatch, "userId")))
+	builder.WriteString(fmt.Sprintf("👤 *Adv User Id:* `%v`\n\n", safeGetFloat64(orderMatch, "advUserId")))
 
 	builder.WriteString("🛍️ *Buyer Information:*\n")
 	builder.WriteString(fmt.Sprintf("- *Nickname:* `%v`\n", safeGetString(orderMatch, "buyerNickname")))
 	builder.WriteString(fmt.Sprintf("- *Name:* `%v`\n\n", safeGetString(orderMatch, "buyerName")))
 
+	builder.WriteString("🛍️ *Seller Information:*\n")
+	builder.WriteString(fmt.Sprintf("- *Nickname:* `%v`\n", safeGetString(orderMatch, "sellerNickname")))
+	builder.WriteString(fmt.Sprintf("- *Name:* `%v`\n\n", safeGetString(orderMatch, "sellerName")))
+
 	builder.WriteString("💰 *Transaction Details:*\n")
-	builder.WriteString(fmt.Sprintf("- *Amount:* `%v %v`\n", safeGetFloat64(orderMatch, "amount"), safeGetString(orderMatch, "asset")))
-	builder.WriteString(fmt.Sprintf("- *Price:* `%v %v/%v`\n", safeGetFloat64(orderMatch, "price"), safeGetString(orderMatch, "fiatUnit"), safeGetString(orderMatch, "asset")))
-	builder.WriteString(fmt.Sprintf("- *Total Price:* `%v %v`\n\n", safeGetFloat64(orderMatch, "totalPrice"), safeGetString(orderMatch, "fiatUnit")))
+	builder.WriteString(fmt.Sprintf("- *Amount:* `%v %v`\n", safeGetString(orderMatch, "amount"), safeGetString(orderMatch, "asset")))
+	builder.WriteString(fmt.Sprintf("- *Price:* `%v %v/%v`\n", safeGetString(orderMatch, "price"), safeGetString(orderMatch, "fiatUnit"), safeGetString(orderMatch, "asset")))
+	builder.WriteString(fmt.Sprintf("- *Total Price:* `%v %v`\n\n", safeGetString(orderMatch, "totalPrice"), safeGetString(orderMatch, "fiatUnit")))
 
 	builder.WriteString("💼 *Trade Information:*\n")
 	builder.WriteString(fmt.Sprintf("- *Trade Type:* `%v`\n", safeGetString(orderMatch, "tradeType")))
 	builder.WriteString(fmt.Sprintf("- *Pay Type:* `%v`\n", safeGetString(orderMatch, "payType")))
 
 	return builder.String()
+}
+
+func GetTypedValue(data map[string]interface{}, key string) string {
+	if value, ok := data[key]; ok {
+		switch v := value.(type) {
+		case string:
+			return v
+		case int, int8, int16, int32, int64:
+			return fmt.Sprintf("%d", v)
+		case uint, uint8, uint16, uint32, uint64:
+			return fmt.Sprintf("%d", v)
+		case float32, float64:
+			return fmt.Sprintf("%f", v)
+		case bool:
+			return fmt.Sprintf("%t", v)
+		case []interface{}:
+			return fmt.Sprintf("Array: %v", v)
+		case map[string]interface{}:
+			return fmt.Sprintf("Map: %v", v)
+		default:
+			return fmt.Sprintf("%v", v)
+		}
+	}
+	return "N/A"
 }
