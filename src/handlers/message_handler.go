@@ -73,7 +73,7 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 
 	// First, check if the command is one of the simple user commands.
 	if isSimpleUserCommand(command) {
-		handleSimpleUser(bot, update, user, database)
+		handleSimpleUser(bot, update, user)
 		return
 	}
 
@@ -106,7 +106,7 @@ func isAdminCommand(cmd string) bool {
 }
 
 // Handling simple user commands
-func handleSimpleUser(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User, database *sql.DB) {
+func handleSimpleUser(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 	if user.IsActive == 0 {
 		inActiveHandler(bot, update)
 		return
