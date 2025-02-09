@@ -144,10 +144,11 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 	j.NoOfOrders--
 
 	orderDetailsMsg := msg_gen.GenerateOrderMessage(orderResponse)
-	message := fmt.Sprintf("🎉 Order Success 🎉 \n\n%s \n\n%s", orderMessage, orderDetailsMsg)
-	j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
-	adminMessage := fmt.Sprintf("User ID: %d\n%s", j.chatID, message)
-	j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, adminMessage))
+	message := tgbotapi.NewMessage(j.chatID, fmt.Sprintf("🎉 Order Success 🎉 \n\n%s \n\n%s", orderMessage, orderDetailsMsg))
+	message.ParseMode = "Markdown"
+	j.bot.Send(message)
+	adminMessage := tgbotapi.NewMessage(config.NotifyUserId, fmt.Sprintf("User ID: %d\n\n 🎉 Order Success 🎉 \n\n%s \n\n%s", j.chatID, orderMessage, orderDetailsMsg))
+	j.bot.Send(adminMessage)
 
 	return nil
 }
