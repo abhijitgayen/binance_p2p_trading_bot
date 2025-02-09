@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -32,6 +33,7 @@ type Job struct {
 	totalRuns           int
 	TotalAmountToInvest float64
 	NoOfOrders          int
+	searchAdsInProgress int32
 }
 
 func NewJob(api *apis.BinanceAPI, queue *priority_queue.PriorityQueue, bot *tgbotapi.BotAPI, chatID int64) *Job {
@@ -57,6 +59,18 @@ func (j *Job) Run() {
 	j.wg.Wait() // Wait for both workers to complete
 }
 
+func (j *Job) Stop() {
+	select {
+	case <-j.stopChan:
+		log.Printf("Job is already closed")
+	default:
+		close(j.stopChan)
+	}
+
+	j.Queue.Clear()
+	log.Printf("Stopping the job")
+}
+
 // Worker to process the queue
 func (j *Job) processQueueWorker() {
 	defer j.wg.Done()
@@ -74,10 +88,7 @@ func (j *Job) processQueueWorker() {
 	}
 }
 
-// Worker to create orders
 func (j *Job) createOrdersWorker() {
-	defer j.wg.Done()
-
 	ticker := time.NewTicker(time.Duration(config.CallJobInterval) * time.Microsecond)
 	defer ticker.Stop()
 
@@ -86,186 +97,189 @@ func (j *Job) createOrdersWorker() {
 		case <-j.stopChan:
 			return
 		case <-ticker.C:
+			// Check if a SearchAds call is already in progress.
+			// If yes, skip this tick.
+			if !atomic.CompareAndSwapInt32(&j.searchAdsInProgress, 0, 1) {
+				// A call is already in flight, so we simply skip this tick.
+				continue
+			}
+
 			asset := getConfigValue(j.BinanceAPI.Config, "asset", "USDT")
 			fiat := getConfigValue(j.BinanceAPI.Config, "fiat", "INR")
 			page := getConfigIntValue(j.BinanceAPI.Config, "page", 1)
 			rows := getConfigIntValue(j.BinanceAPI.Config, "rows", 2)
 			tradeType := getConfigValue(j.BinanceAPI.Config, "trade_type", "BUY")
 
-			j.ListAdsAndCreateOrders(asset, fiat, page, rows, tradeType)
+			// Call SearchAds asynchronously so the worker doesn’t block.
+			go func() {
+				// Ensure we release the flag when done.
+				defer atomic.StoreInt32(&j.searchAdsInProgress, 0)
+
+				adsResponse, err := j.BinanceAPI.SearchAds(asset, fiat, page, rows, tradeType)
+				if err != nil {
+					log.Printf("Error fetching ads: %v", err)
+					return
+				}
+				// If successful, process the ads response concurrently.
+				// This function validates each ad and adds it to the queue.
+				j.processAdsResponse(adsResponse)
+			}()
+
+			// Update run-time stats (these run regardless of the SearchAds result).
 			j.lastRunTime = time.Now()
 			j.totalRuns++
 		}
 	}
 }
 
-func (j *Job) Stop() {
-	select {
-	case <-j.stopChan:
-		fmt.Println("Job is already closed")
-	default:
-		close(j.stopChan)
-	}
-
-	j.Queue.Clear()
-	fmt.Println("Stopping the job")
-}
-
-func (j *Job) ListAdsAndCreateOrders(asset, fiat string, page, rows int, tradeType string) {
-	if j.BinanceAPI.Config == nil {
-		log.Printf("Binance API config not found")
-		return
-	}
-
-	// Extract error codes to ignore from the config
-	extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
-	if !ok {
-		log.Printf("extra_filter not found or is not a map in config")
-		return
-	}
-
-	errorCodesStr, ok := extraFilter["error_codes"].(string)
-	if !ok {
-		log.Printf("error_codes not found or is not a string in extra_filter")
-		return
-	}
-
-	errorCodesList := strings.Split(errorCodesStr, ",")
-
-	errorIgnore := make(map[int]bool)
-	for _, codeStr := range errorCodesList {
-		code, err := strconv.Atoi(strings.TrimSpace(codeStr))
-		if err != nil {
-			log.Printf("Failed to parse error code: %v", err)
-			continue
-		}
-		errorIgnore[code] = true
-	}
-
-	// Fetch ads from Binance API
-	adsResponse, err := j.BinanceAPI.SearchAds(asset, fiat, page, rows, tradeType)
-	if err != nil {
-		log.Printf("Failed to fetch ads: %v", err)
-		return
-	}
-
-	// Extract ads from response
+// processAdsResponse processes the API response by validating each ad
+// and adding it to the queue if it meets the criteria.
+func (j *Job) processAdsResponse(adsResponse map[string]interface{}) {
+	// Extract ads from the response.
 	ads, ok := adsResponse["data"].([]interface{})
 	if !ok {
 		log.Printf("Invalid ads response format")
-		message := fmt.Sprintf(" 🛑 List Ads Fails 🛑 \n\n Error: %s \n Use command  /stop to the job", "Invalid ads response format")
+		errorMessage, ok := adsResponse["msg"].(string)
+		if !ok || errorMessage == "" {
+			errorMessage = "Unknown error occurred."
+		}
+
+		errorCode := adsResponse["code"]
+
+		message := fmt.Sprintf(" 🛑 List Ads Fails 🛑 \n\nERR CODE: %v\nERR MSG: %s  \n\n Use command /stop to the job",
+			errorCode, errorMessage)
 		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 		return
 	}
 
-	// Add ads to the priority queue
 	for _, ad := range ads {
 		adMap, ok := ad.(map[string]interface{})
 		if !ok {
-			continue
+			return
 		}
 
 		adv, ok := adMap["adv"].(map[string]interface{})
 		if !ok {
 			log.Println("adv not found or is not a map in adMap")
-			continue
+			return
 		}
 
+		// Validate and convert the price.
 		priceStr, ok := adv["price"].(string)
 		if !ok || priceStr == "" {
 			log.Println("price not found or is not a string in adMap")
-			continue
+			return
 		}
-
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			log.Printf("Failed to parse price: %v", err)
-			continue
+			return
 		}
 
+		// Validate and convert maxSingleTransAmount.
 		maxSingleTransAmountStr, ok := adv["maxSingleTransAmount"].(string)
 		if !ok {
-			log.Println("minSingleTransAmount not found or is not a string in adv")
-			continue
+			log.Println("maxSingleTransAmount not found or is not a string in adv")
+			return
 		}
 		maxSingleTransAmount, err := strconv.ParseFloat(maxSingleTransAmountStr, 64)
 		if err != nil {
-			log.Printf("Failed to parse minSingleTransAmount: %v", err)
-			continue
+			log.Printf("Failed to parse maxSingleTransAmount: %v", err)
+			return
 		}
 
+		// Retrieve extra filter settings.
 		extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
 		if !ok {
 			log.Printf("extra_filter not found or is not a map in config")
 			return
 		}
-
 		targetPrice := getConfigFloatValue(extraFilter, "price", 0)
-		if !ok {
-			log.Printf("extra_filter not found or is not a map in config")
-			return
-		}
-
 		minimumLimit := getConfigFloatValue(extraFilter, "minimum_limit", 0)
-		if !ok {
-			log.Printf("extra_filter not found or is not a map in config")
-			return
-		}
 
+		// Build a unique task name (assuming advNo is unique).
 		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
 
-		// fmt.Printf("Price: %.2f, Target Price: %.2f\n minSingleTransAmount: %.2f \n minimumLimit %.2f ", price, targetPrice, minSingleTransAmount, minimumLimit)
-
-		if price > targetPrice {
-			continue
+		// Validate based on your criteria.
+		if price > targetPrice || maxSingleTransAmount <= minimumLimit {
+			return
 		}
 
-		if maxSingleTransAmount <= minimumLimit {
-			continue
-		}
+		// Protect shared state.
 
-		// Check if the ad has been processed before and had an error
 		if adInfo, exists := j.adsTracker[taskName]; exists {
-			if adInfo.HasError {
-				if adInfo.Err != nil && !errorIgnore[int(adInfo.Err["code"].(float64))] {
-					continue
-				}
+			if !adInfo.HasError || (adInfo.Err != nil && !shouldRetry(adInfo.Err, extraFilter)) {
 
-				if j.Queue.ContainsTask(taskName) {
-					continue
-				}
-
-				// log.Printf("Retrying task %s\n", taskName)
-			} else {
-				continue
+				return
 			}
 		}
+		j.adsTracker[taskName] = &AdInfo{Ad: adv, HasError: false}
 
-		// fmt.Printf("Not Skipping ad %s \n", taskName)
-		// Store the ad information
-		j.adsTracker[taskName] = &AdInfo{
-			Ad:       adv,
-			HasError: false,
-		}
-
-		// we do not want to add the same task multiple times and also need to select some perticular type of ads.
+		// Add the validated ad as a task to your priority queue.
 		j.Queue.AddTask(priority_queue.Task{
 			Name: taskName,
-			PriorityFn: func(price float64) func() int {
-				return func() int { return calculatePriority(price) }
-			}(price),
+			PriorityFn: func() int {
+				return calculatePriority(price)
+			},
 			Timestamp: time.Now(),
-			Exec: func(taskName string, adv map[string]interface{}) func() {
-				return func() {
-					err := j.createOrder(taskName, adv)
-					if err != nil {
-						// log.Printf("Error creating order for %s: %v\n", taskName, err)
-						j.adsTracker[taskName].HasError = true
-					} else {
-						// log.Printf("Successfully executed task %s\n", taskName)
-					}
+			Exec: func() {
+				err := j.createOrder(taskName, adv)
+				if err != nil {
+					log.Printf("Error creating order for %s: %v", taskName, err)
+				} else {
+					log.Printf("Successfully executed task %s", taskName)
 				}
-			}(taskName, adv),
+			},
 		})
 	}
+}
+
+// Example helper to decide if we should retry based on error details and extraFilter settings.
+// shouldRetry determines if a task should be retried based on error data and extra filter criteria.
+// It returns true if the error code found in errData is one of the error codes specified in extraFilter["error_codes"].
+func shouldRetry(errData map[string]interface{}, extraFilter map[string]interface{}) bool {
+	// Retrieve error codes string from extraFilter.
+	errorCodesStr, ok := extraFilter["error_codes"].(string)
+	if !ok {
+		// If there are no specified error codes, allow retry by default.
+		return true
+	}
+
+	// Parse the comma-separated error codes into a map.
+	errorCodesList := strings.Split(errorCodesStr, ",")
+	allowedErrorCodes := make(map[int]bool)
+	for _, codeStr := range errorCodesList {
+		trimmed := strings.TrimSpace(codeStr)
+		if code, err := strconv.Atoi(trimmed); err == nil {
+			allowedErrorCodes[code] = true
+		}
+	}
+
+	// Extract the error code from errData.
+	codeInterface, ok := errData["code"]
+	if !ok {
+		// If there is no error code in the error data, allow retry by default.
+		return true
+	}
+
+	var code int
+	switch v := codeInterface.(type) {
+	case float64:
+		code = int(v)
+	case int:
+		code = v
+	case string:
+		if parsed, err := strconv.Atoi(v); err == nil {
+			code = parsed
+		} else {
+			// Cannot parse the string to an integer; do not retry.
+			return false
+		}
+	default:
+		// Unknown type; do not retry.
+		return false
+	}
+
+	// Allow retry only if the error code is one of the allowed error codes.
+	return allowedErrorCodes[code]
 }

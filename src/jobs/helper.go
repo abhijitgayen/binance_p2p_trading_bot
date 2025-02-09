@@ -100,7 +100,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 			message := fmt.Sprintf(" 🛑 Inappropriate Amount 🛑 \n\n %s \n Use command  /stop to the job", orderMessage)
 			j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 			j.adsTracker[taskName].HasError = true
-			return fmt.Errorf("inappropriate amount")
+			return nil
 		}
 	}
 
@@ -123,8 +123,8 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		j.adsTracker[taskName].HasError = true
 		j.adsTracker[taskName].Err = orderResponse
 
-		errorMessage, _ := orderResponse["msg"].(string)
-		if errorMessage == "" {
+		errorMessage, ok := orderResponse["msg"].(string)
+		if !ok || errorMessage == "" {
 			errorMessage = "Unknown error occurred."
 		}
 
@@ -137,7 +137,7 @@ func (j *Job) createOrder(taskName string, adv map[string]interface{}) error {
 		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 		adminMessage := fmt.Sprintf("User ID: %d\n%s", j.chatID, message)
 		j.bot.Send(tgbotapi.NewMessage(config.NotifyUserId, adminMessage))
-		return fmt.Errorf("order creation failed for %s", advOrderNumber)
+		return nil
 	}
 
 	j.TotalAmountToInvest -= totalAmount

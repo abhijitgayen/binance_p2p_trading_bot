@@ -51,11 +51,11 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 		var botConfigMap map[string]interface{}
 		configJSON, err := json.Marshal(config.DefaultBotConfig)
 		if err != nil {
-			log.Fatalf("Failed to marshal default bot config: %v", err)
+			log.Printf("Failed to marshal default bot config: %v", err)
 		}
 		err = json.Unmarshal(configJSON, &botConfigMap)
 		if err != nil {
-			log.Fatalf("Failed to unmarshal default bot config: %v", err)
+			log.Printf("Failed to unmarshal default bot config: %v", err)
 		}
 
 		// Insert new user data

@@ -52,12 +52,12 @@ func adminRunJobHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 	apiKey, ok := user.BotConfig["api_key"].(string)
 	if !ok {
-		log.Fatalf("api_key not found or is not a string in user.BotConfig")
+		log.Printf("api_key not found or is not a string in user.BotConfig")
 	}
 
 	secretKey, ok := user.BotConfig["secret_key"].(string)
 	if !ok {
-		log.Fatalf("secret_key not found or is not a string in user.BotConfig")
+		log.Printf("secret_key not found or is not a string in user.BotConfig")
 	}
 
 	api := apis.NewBinanceAPI(config.BinanceURL, apiKey, secretKey, user.BotConfig)

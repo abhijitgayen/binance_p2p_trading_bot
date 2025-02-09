@@ -42,7 +42,7 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 	if !ok {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "api_key not found or is not a string in user.BotConfig")
 		bot.Send(msg)
-		log.Fatalf("api_key not found or is not a string in user.BotConfig")
+		log.Printf("api_key not found or is not a string in user.BotConfig")
 		return
 	}
 
@@ -50,7 +50,7 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 	if !ok {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "secret_key not found or is not a string in user.BotConfig")
 		bot.Send(msg)
-		log.Fatalf("secret_key not found or is not a string in user.BotConfig")
+		log.Printf("secret_key not found or is not a string in user.BotConfig")
 		return
 	}
 
@@ -267,11 +267,11 @@ func resetHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, database *sql.DB
 	var botConfigMap map[string]interface{}
 	configJSON, err := json.Marshal(config.DefaultBotConfig)
 	if err != nil {
-		log.Fatalf("Failed to marshal default bot config: %v", err)
+		log.Printf("Failed to marshal default bot config: %v", err)
 	}
 	err = json.Unmarshal(configJSON, &botConfigMap)
 	if err != nil {
-		log.Fatalf("Failed to unmarshal default bot config: %v", err)
+		log.Printf("Failed to unmarshal default bot config: %v", err)
 	}
 
 	// Insert new user data

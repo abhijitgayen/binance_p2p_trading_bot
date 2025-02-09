@@ -1,7 +1,7 @@
 package priority_queue
 
 import (
-	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -69,7 +69,7 @@ func (pq *PriorityQueue) ProcessTasks() {
 	// Execute tasks outside the lock
 	for _, task := range tasksToRemove {
 		task := task.(Task)
-		fmt.Printf("Running: %s with priority %d\n", task.Name, task.PriorityFn())
+		log.Printf("Running: %s with priority %d\n", task.Name, task.PriorityFn())
 		task.Exec()
 		time.Sleep(pq.sleepTime)
 
@@ -86,7 +86,7 @@ func (pq *PriorityQueue) Clear() {
 	pq.tree.Clear(true)
 	pq.mu.Unlock()
 
-	fmt.Println("Clearing the priority queue")
+	log.Printf("Clearing the priority queue")
 }
 
 func (pq *PriorityQueue) ContainsTask(taskName string) bool {
