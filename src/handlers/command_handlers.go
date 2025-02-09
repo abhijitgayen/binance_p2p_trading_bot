@@ -37,7 +37,7 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 	}
 
 	apiKey, ok := user.BotConfig["api_key"].(string)
-	if !ok {
+	if !ok || apiKey == "" {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "api_key not found or is not a string in user.BotConfig")
 		bot.Send(msg)
 		log.Printf("api_key not found or is not a string in user.BotConfig")
@@ -45,7 +45,7 @@ func runHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User) {
 	}
 
 	secretKey, ok := user.BotConfig["secret_key"].(string)
-	if !ok {
+	if !ok || secretKey == "" {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "secret_key not found or is not a string in user.BotConfig")
 		bot.Send(msg)
 		log.Printf("secret_key not found or is not a string in user.BotConfig")
@@ -69,10 +69,16 @@ func stopHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /stop command")
 
 	userID := update.Message.From.ID
-	jobManager := jobs.GetJobManager()
-	jobManager.StopJob(userID)
+	jobManager := jobs.GetJobManager() // Assuming GetJobManager returns *JobManager
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 The bot has been stopped.\n\nUse the command /run to Run the Job")
+	// Attempt to stop the job and handle the case where no job exists.
+	if err := jobManager.StopJob(userID); err != nil {
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "No job is currently running.\n\n Use /run to start a job.")
+		bot.Send(msg)
+		return
+	}
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🚫 The bot has been stopped.\n\nUse the command /run to run the job.")
 	bot.Send(msg)
 }
 

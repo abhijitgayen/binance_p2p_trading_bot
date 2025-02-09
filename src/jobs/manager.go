@@ -38,14 +38,16 @@ func (jm *JobManager) StartJob(userID int64, api *apis.BinanceAPI, queue *priori
 	}
 }
 
-func (jm *JobManager) StopJob(userID int64) {
+func (jm *JobManager) StopJob(userID int64) error {
 	jm.mu.Lock()
 	defer jm.mu.Unlock()
 
 	if job, exists := jm.jobs[userID]; exists {
 		job.Stop()
 		delete(jm.jobs, userID)
+		return nil
 	}
+	return fmt.Errorf("no job exists for user %d", userID)
 }
 
 func (jm *JobManager) GetJobStatus(userID int64) string {
