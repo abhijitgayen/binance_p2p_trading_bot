@@ -23,11 +23,6 @@ func isAdmin(userID int64) bool {
 func adminRunJobHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /admin_run_job command")
 
-	if !isAdmin(update.Message.From.ID) {
-		defaultHandler(bot, update)
-		return
-	}
-
 	args := update.Message.CommandArguments()
 	userID, err := strconv.ParseInt(args, 10, 64)
 	if err != nil {
@@ -76,11 +71,6 @@ func adminRunJobHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 func adminStopJobHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /admin_stop_job command")
 
-	if !isAdmin(update.Message.From.ID) {
-		defaultHandler(bot, update)
-		return
-	}
-
 	args := update.Message.CommandArguments()
 	userID, err := strconv.ParseInt(args, 10, 64)
 	if err != nil {
@@ -98,11 +88,6 @@ func adminStopJobHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 func adminJobStatusHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /admin_job_status command")
-
-	if !isAdmin(update.Message.From.ID) {
-		defaultHandler(bot, update)
-		return
-	}
 
 	jobManager := jobs.GetJobManager()
 	users, err := db.GetAllUsers(database) // Assuming you have a function to get all users
@@ -127,13 +112,6 @@ func adminJobStatusHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 // adminHelpHandler handles the /admin_help command for admins
 func adminHelpHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("🔹 Handling /admin_help command")
-
-	// Check if the user is an admin
-	if !isAdmin(update.Message.From.ID) {
-		log.Printf("🚫 User %d is not an admin. Redirecting to default handler.", update.Message.From.ID)
-		defaultHandler(bot, update)
-		return
-	}
 
 	// Define the help message
 	helpMessage := "*🔧 Admin Commands:*\n\n" +

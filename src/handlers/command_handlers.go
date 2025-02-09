@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
-	"encoding/json"
 	"fmt"
 
 	"go_binance_bot/src/apis"
@@ -259,32 +257,22 @@ func convertValue(value string) interface{} {
 	return value
 }
 
-func resetHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update, database *sql.DB) {
+// resetHandler sends an inline keyboard asking for confirmation.
+func resetHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /reset command")
 
-	userID := update.Message.From.ID
+	// Create inline keyboard buttons for confirmation and cancellation
+	confirmButton := tgbotapi.NewInlineKeyboardButtonData("✅ Confirm", "confirm_reset")
+	cancelButton := tgbotapi.NewInlineKeyboardButtonData("❌ Cancel", "cancel_reset")
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(confirmButton, cancelButton),
+	)
 
-	var botConfigMap map[string]interface{}
-	configJSON, err := json.Marshal(config.DefaultBotConfig)
-	if err != nil {
-		log.Printf("Failed to marshal default bot config: %v", err)
-	}
-	err = json.Unmarshal(configJSON, &botConfigMap)
-	if err != nil {
-		log.Printf("Failed to unmarshal default bot config: %v", err)
-	}
+	// Send confirmation message
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+		"⚠️ Are you sure you want to reset your bot configuration? This action cannot be undone.")
+	msg.ReplyMarkup = keyboard
 
-	// Insert new user data
-	user := &db.User{
-		UserID:    userID,
-		FirstName: update.Message.From.FirstName,
-		LastName:  update.Message.From.LastName,
-		BotConfig: botConfigMap,
-	}
-
-	db.UpdateUser(database, *user)
-
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🔄 The bot configuration has been reset.")
 	bot.Send(msg)
 }
 
@@ -314,6 +302,18 @@ func helpHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 
 func aboutHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	log.Println("Handling /about command")
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "A secure bot for seamless peer-to-peer trading on Binance, allowing authorized users to easily execute buy and sell orders.")
+
+	aboutText := "🤖 *About This Trading Bot*\n\n" +
+		"This bot is built exclusively for executing Binance trading orders. " +
+		"To get started, please set up your configuration using the `/set_config` command. " +
+		"Once configured, the bot will run in the background, automatically processing orders " +
+		"based on your setup.\n\n" +
+		"If any unrecognized activity or unexpected commands are detected, you will immediately " +
+		"receive a notification so that you can review and take appropriate action.\n\n" +
+		"Enjoy seamless, automated trading with our secure bot!"
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, aboutText)
+	// Using Markdown for formatting.
+	msg.ParseMode = "Markdown"
 	bot.Send(msg)
 }

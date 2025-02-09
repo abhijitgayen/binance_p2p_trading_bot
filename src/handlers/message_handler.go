@@ -68,6 +68,50 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 		db.InsertUser(database, *user)
 	}
 
+	// Get the command from the message.
+	command := update.Message.Command()
+
+	// First, check if the command is one of the simple user commands.
+	if isSimpleUserCommand(command) {
+		handleSimpleUser(bot, update, user, database)
+		return
+	}
+
+	// Next, check if the command is an admin command.
+	if isAdminCommand(command) {
+		handleAdminUser(bot, update)
+		return
+	}
+
+	// If it doesn’t match any known command, use the default (unknown) handler.
+	defaultHandler(bot, update)
+}
+
+// Helper function: returns true if the command is for a simple user.
+func isSimpleUserCommand(cmd string) bool {
+	switch cmd {
+	case "start", "stop", "run", "status", "get_config", "set_config", "reset", "help", "about":
+		return true
+	}
+	return false
+}
+
+// Helper function: returns true if the command is for an admin user.
+func isAdminCommand(cmd string) bool {
+	switch cmd {
+	case "admin_run_job", "admin_stop_job", "admin_job_status", "admin_help":
+		return true
+	}
+	return false
+}
+
+// Handling simple user commands
+func handleSimpleUser(bot *tgbotapi.BotAPI, update tgbotapi.Update, user *db.User, database *sql.DB) {
+	if user.IsActive == 0 {
+		inActiveHandler(bot, update)
+		return
+	}
+
 	switch update.Message.Command() {
 	case "start":
 		startHandler(bot, update)
@@ -82,11 +126,24 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	case "set_config":
 		setConfigHandler(bot, update, user)
 	case "reset":
-		resetHandler(bot, update, database)
+		resetHandler(bot, update)
 	case "help":
 		helpHandler(bot, update)
 	case "about":
 		aboutHandler(bot, update)
+	default:
+		defaultHandler(bot, update)
+	}
+}
+
+// Handling admin commands
+func handleAdminUser(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	if !isAdmin(update.Message.From.ID) {
+		defaultHandler(bot, update)
+		return
+	}
+
+	switch update.Message.Command() {
 	case "admin_run_job":
 		adminRunJobHandler(bot, update)
 	case "admin_stop_job":
@@ -100,8 +157,14 @@ func HandleMessage(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	}
 }
 
+// Fallback handler for unknown commands.
 func defaultHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 	response := "Unknown command. Use /help to see available commands."
 	msg := tgbotapi.NewMessage(update.Message.Chat.ID, response)
+	bot.Send(msg)
+}
+
+func inActiveHandler(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "⚠️ You are not active. Please contact with the admin.")
 	bot.Send(msg)
 }
