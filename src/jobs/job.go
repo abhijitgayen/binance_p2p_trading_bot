@@ -155,44 +155,45 @@ func (j *Job) processAdsResponse(adsResponse map[string]interface{}) {
 	for _, ad := range ads {
 		adMap, ok := ad.(map[string]interface{})
 		if !ok {
-			return
+			log.Println("ad not found or is not a map in ads")
+			continue
 		}
 
 		adv, ok := adMap["adv"].(map[string]interface{})
 		if !ok {
 			log.Println("adv not found or is not a map in adMap")
-			return
+			continue
 		}
 
 		// Validate and convert the price.
 		priceStr, ok := adv["price"].(string)
 		if !ok || priceStr == "" {
 			log.Println("price not found or is not a string in adMap")
-			return
+			continue
 		}
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			log.Printf("Failed to parse price: %v", err)
-			return
+			continue
 		}
 
 		// Validate and convert maxSingleTransAmount.
 		maxSingleTransAmountStr, ok := adv["maxSingleTransAmount"].(string)
 		if !ok {
 			log.Println("maxSingleTransAmount not found or is not a string in adv")
-			return
+			continue
 		}
 		maxSingleTransAmount, err := strconv.ParseFloat(maxSingleTransAmountStr, 64)
 		if err != nil {
 			log.Printf("Failed to parse maxSingleTransAmount: %v", err)
-			return
+			continue
 		}
 
 		// Retrieve extra filter settings.
 		extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
 		if !ok {
 			log.Printf("extra_filter not found or is not a map in config")
-			return
+			continue
 		}
 		targetPrice := getConfigFloatValue(extraFilter, "price", 0)
 		minimumLimit := getConfigFloatValue(extraFilter, "minimum_limit", 0)
@@ -200,17 +201,18 @@ func (j *Job) processAdsResponse(adsResponse map[string]interface{}) {
 		// Build a unique task name (assuming advNo is unique).
 		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
 
+		fmt.Println("ads", adv)
+
 		// Validate based on your criteria.
 		if price > targetPrice || maxSingleTransAmount <= minimumLimit {
-			return
+			fmt.Printf("Skipping ad %s with price %f and maxSingleTransAmount %f\n", taskName, price, maxSingleTransAmount)
+			continue
 		}
 
 		// Protect shared state.
-
 		if adInfo, exists := j.adsTracker[taskName]; exists {
 			if !adInfo.HasError || (adInfo.Err != nil && !shouldRetry(adInfo.Err, extraFilter)) {
-
-				return
+				continue
 			}
 		}
 		j.adsTracker[taskName] = &AdInfo{Ad: adv, HasError: false}
