@@ -136,3 +136,4 @@ docker run --rm --env-file .env my-go-bot
          -> need to find some optimiz solution for this.
          -> this ads capture by another bot.
 3. Find out the way to make a parallel request
+4. Need to integrate the message properly.
