@@ -201,11 +201,8 @@ func (j *Job) processAdsResponse(adsResponse map[string]interface{}) {
 		// Build a unique task name (assuming advNo is unique).
 		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
 
-		fmt.Println("ads", adv)
-
 		// Validate based on your criteria.
 		if price > targetPrice || maxSingleTransAmount <= minimumLimit {
-			fmt.Printf("Skipping ad %s with price %f and maxSingleTransAmount %f\n", taskName, price, maxSingleTransAmount)
 			continue
 		}
 
