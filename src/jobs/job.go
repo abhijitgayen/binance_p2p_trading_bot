@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -34,6 +33,7 @@ type Job struct {
 	TotalAmountToInvest float64
 	NoOfOrders          int
 	searchAdsInProgress int32
+	mu                  sync.Mutex
 }
 
 func NewJob(api *apis.BinanceAPI, queue *priority_queue.PriorityQueue, bot *tgbotapi.BotAPI, chatID int64) *Job {
@@ -89,47 +89,40 @@ func (j *Job) processQueueWorker() {
 }
 
 func (j *Job) createOrdersWorker() {
-	ticker := time.NewTicker(time.Duration(config.CallJobInterval) * time.Microsecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-j.stopChan:
-			return
-		case <-ticker.C:
-			// Check if a SearchAds call is already in progress.
-			// If yes, skip this tick.
-			if !atomic.CompareAndSwapInt32(&j.searchAdsInProgress, 0, 1) {
-				// A call is already in flight, so we simply skip this tick.
-				continue
+	go func() {
+		for {
+			// Check for a stop signal.
+			select {
+			case <-j.stopChan:
+				return
+			default:
 			}
 
+			// Retrieve config values.
 			asset := getConfigValue(j.BinanceAPI.Config, "asset", "USDT")
 			fiat := getConfigValue(j.BinanceAPI.Config, "fiat", "INR")
 			page := getConfigIntValue(j.BinanceAPI.Config, "page", 1)
 			rows := getConfigIntValue(j.BinanceAPI.Config, "rows", 2)
 			tradeType := getConfigValue(j.BinanceAPI.Config, "trade_type", "BUY")
 
-			// Call SearchAds asynchronously so the worker doesn’t block.
-			go func() {
-				// Ensure we release the flag when done.
-				defer atomic.StoreInt32(&j.searchAdsInProgress, 0)
+			// Call the API.
+			adsResponse, err := j.BinanceAPI.SearchAds(asset, fiat, page, rows, tradeType)
+			if err != nil {
+				log.Printf("Error fetching ads: %v", err)
+				// On error, wait for the configured interval.
+				time.Sleep(time.Duration(config.CallJobInterval) * time.Microsecond)
+			} else {
+				// Process the ads concurrently without blocking the next API call.
+				go j.processAdsResponse(adsResponse)
+				// On success, wait only x micoseconds before next call.
+				time.Sleep(time.Duration(config.CallJobInterval) * time.Microsecond)
+			}
 
-				adsResponse, err := j.BinanceAPI.SearchAds(asset, fiat, page, rows, tradeType)
-				if err != nil {
-					log.Printf("Error fetching ads: %v", err)
-					return
-				}
-				// If successful, process the ads response concurrently.
-				// This function validates each ad and adds it to the queue.
-				j.processAdsResponse(adsResponse)
-			}()
-
-			// Update run-time stats (these run regardless of the SearchAds result).
+			// Update run-time stats.
 			j.lastRunTime = time.Now()
 			j.totalRuns++
 		}
-	}
+	}()
 }
 
 // processAdsResponse processes the API response by validating each ad
@@ -138,99 +131,120 @@ func (j *Job) processAdsResponse(adsResponse map[string]interface{}) {
 	// Extract ads from the response.
 	ads, ok := adsResponse["data"].([]interface{})
 	if !ok {
-		log.Printf("Invalid ads response format")
-		errorMessage, ok := adsResponse["msg"].(string)
-		if !ok || errorMessage == "" {
-			errorMessage = "Unknown error occurred."
-		}
-
-		errorCode := adsResponse["code"]
-
-		message := fmt.Sprintf(" 🛑 List Ads Fails 🛑 \n\nERR CODE: %v\nERR MSG: %s  \n\n Use command /stop to the job",
-			errorCode, errorMessage)
-		j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
+		j.handleErrorResponse(adsResponse)
 		return
 	}
 
+	// Set a concurrency limit. Adjust this value based on your system's capacity.
+	concurrencyLimit := 10
+	sem := make(chan struct{}, concurrencyLimit)
+	var wg sync.WaitGroup
+
+	// Process each ad concurrently, but only up to the concurrency limit.
 	for _, ad := range ads {
-		adMap, ok := ad.(map[string]interface{})
-		if !ok {
-			log.Println("ad not found or is not a map in ads")
-			continue
-		}
+		sem <- struct{}{} // Acquire a slot.
+		wg.Add(1)
 
-		adv, ok := adMap["adv"].(map[string]interface{})
-		if !ok {
-			log.Println("adv not found or is not a map in adMap")
-			continue
-		}
+		go func(ad interface{}) {
+			defer wg.Done()
+			defer func() { <-sem }() // Release the slot when done.
 
-		// Validate and convert the price.
-		priceStr, ok := adv["price"].(string)
-		if !ok || priceStr == "" {
-			log.Println("price not found or is not a string in adMap")
-			continue
-		}
-		price, err := strconv.ParseFloat(priceStr, 64)
-		if err != nil {
-			log.Printf("Failed to parse price: %v", err)
-			continue
-		}
-
-		// Validate and convert maxSingleTransAmount.
-		maxSingleTransAmountStr, ok := adv["maxSingleTransAmount"].(string)
-		if !ok {
-			log.Println("maxSingleTransAmount not found or is not a string in adv")
-			continue
-		}
-		maxSingleTransAmount, err := strconv.ParseFloat(maxSingleTransAmountStr, 64)
-		if err != nil {
-			log.Printf("Failed to parse maxSingleTransAmount: %v", err)
-			continue
-		}
-
-		// Retrieve extra filter settings.
-		extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
-		if !ok {
-			log.Printf("extra_filter not found or is not a map in config")
-			continue
-		}
-		targetPrice := getConfigFloatValue(extraFilter, "price", 0)
-		minimumLimit := getConfigFloatValue(extraFilter, "minimum_limit", 0)
-
-		// Build a unique task name (assuming advNo is unique).
-		taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
-
-		// Validate based on your criteria.
-		if price > targetPrice || maxSingleTransAmount <= minimumLimit {
-			continue
-		}
-
-		// Protect shared state.
-		if adInfo, exists := j.adsTracker[taskName]; exists {
-			if !adInfo.HasError || (adInfo.Err != nil && !shouldRetry(adInfo.Err, extraFilter)) {
-				continue
+			if err := j.processAd(ad); err != nil {
+				log.Printf("Error processing ad: %v", err)
 			}
-		}
-		j.adsTracker[taskName] = &AdInfo{Ad: adv, HasError: false}
-
-		// Add the validated ad as a task to your priority queue.
-		j.Queue.AddTask(priority_queue.Task{
-			Name: taskName,
-			PriorityFn: func() int {
-				return calculatePriority(price)
-			},
-			Timestamp: time.Now(),
-			Exec: func() {
-				err := j.createOrder(taskName, adv)
-				if err != nil {
-					log.Printf("Error creating order for %s: %v", taskName, err)
-				} else {
-					log.Printf("Successfully executed task %s", taskName)
-				}
-			},
-		})
+		}(ad)
 	}
+
+	wg.Wait() // Wait for all Goroutines to finish.
+}
+
+func (j *Job) processAd(ad interface{}) error {
+	// Extract the ad map.
+	adMap, ok := ad.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("ad not found or is not a map in ads")
+	}
+
+	adv, ok := adMap["adv"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("adv not found or is not a map in adMap")
+	}
+
+	// Validate and convert the price.
+	price, err := j.parseFloat(adv, "price")
+	if err != nil {
+		return err
+	}
+
+	// Validate and convert maxSingleTransAmount.
+	maxSingleTransAmount, err := j.parseFloat(adv, "maxSingleTransAmount")
+	if err != nil {
+		return err
+	}
+
+	// Retrieve extra filter settings.
+	extraFilter, ok := j.BinanceAPI.Config["extra_filter"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("extra_filter not found or is not a map in config")
+	}
+	targetPrice := getConfigFloatValue(extraFilter, "price", 0)
+	minimumLimit := getConfigFloatValue(extraFilter, "minimum_limit", 0)
+
+	// Build a unique task name (assuming advNo is unique).
+	taskName := fmt.Sprintf("Order %s", adv["advNo"].(string))
+
+	// Validate based on your criteria.
+	if price > targetPrice || maxSingleTransAmount <= minimumLimit {
+		return nil
+	}
+
+	// Safely update shared state.
+	j.mu.Lock()
+	if adInfo, exists := j.adsTracker[taskName]; exists {
+		if !adInfo.HasError || (adInfo.Err != nil && !shouldRetry(adInfo.Err, extraFilter)) {
+			j.mu.Unlock()
+			return nil
+		}
+	}
+	j.adsTracker[taskName] = &AdInfo{Ad: adv, HasError: false}
+	j.mu.Unlock()
+
+	// Add the validated ad as a task to your priority queue.
+	j.Queue.AddTask(priority_queue.Task{
+		Name: taskName,
+		PriorityFn: func() int {
+			return calculatePriority(price)
+		},
+		Timestamp: time.Now(),
+		Exec: func() {
+			if err := j.createOrder(taskName, adv); err != nil {
+				log.Printf("Error creating order for %s: %v", taskName, err)
+			} else {
+				log.Printf("Successfully executed task %s", taskName)
+			}
+		},
+	})
+
+	return nil
+}
+
+func (j *Job) parseFloat(data map[string]interface{}, key string) (float64, error) {
+	valueStr, ok := data[key].(string)
+	if !ok || valueStr == "" {
+		return 0, fmt.Errorf("%s not found or is not a string in data", key)
+	}
+	return strconv.ParseFloat(valueStr, 64)
+}
+
+func (j *Job) handleErrorResponse(response map[string]interface{}) {
+	errorMessage, ok := response["msg"].(string)
+	if !ok || errorMessage == "" {
+		errorMessage = "Unknown error occurred."
+	}
+	errorCode := response["code"]
+	message := fmt.Sprintf(" 🛑 List Ads Fails 🛑 \n\nERR CODE: %v\nERR MSG: %s  \n\n Use command /stop to the job",
+		errorCode, errorMessage)
+	j.bot.Send(tgbotapi.NewMessage(j.chatID, message))
 }
 
 // Example helper to decide if we should retry based on error details and extraFilter settings.
