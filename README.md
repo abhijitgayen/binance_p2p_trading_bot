@@ -1,6 +1,6 @@
-# My Telegram Bot
+# Binance P2p trading Bot
 
-This project is a simple Telegram bot built using Go. It demonstrates how to interact with the Telegram Bot API and handle incoming messages.
+This project is a lightweight Telegram bot developed in Go (Golang) for automating Binance P2P trading operations. It uses the Telegram Bot API to process commands and deliver real-time updates, making it easy to manage and monitor P2P trading directly from Telegram.
 
 ## Project Structure
 
